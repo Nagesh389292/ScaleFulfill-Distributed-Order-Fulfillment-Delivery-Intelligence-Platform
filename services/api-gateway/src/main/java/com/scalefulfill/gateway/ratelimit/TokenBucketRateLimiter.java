@@ -68,12 +68,12 @@ public class TokenBucketRateLimiter {
                         return Mono.just(false);
                     }
                 })
-                .switchIfEmpty(
+                .switchIfEmpty(Mono.defer(() ->
                         redisTemplate.opsForValue().set(redisTokensKey, String.valueOf(capacity - 1), Duration.ofMinutes(5))
                                 .and(redisTemplate.opsForValue().set(redisTimestampKey, String.valueOf(now), Duration.ofMinutes(5)))
                                 .doOnSuccess(v -> redisAvailable = true)
                                 .thenReturn(true)
-                );
+                ));
         }).timeout(Duration.ofMillis(200))
         .onErrorResume(e -> {
             if (redisAvailable) {
