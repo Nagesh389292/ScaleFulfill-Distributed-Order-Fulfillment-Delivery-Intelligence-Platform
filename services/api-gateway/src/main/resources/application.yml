@@ -1,0 +1,42 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: api-gateway
+  data:
+    redis:
+      host: ${SPRING_DATA_REDIS_HOST:localhost}
+      port: ${SPRING_DATA_REDIS_PORT:6379}
+      timeout: 2000ms
+  cloud:
+    gateway:
+      routes:
+        - id: order-service-route
+          uri: ${ORDER_SERVICE_URL:http://localhost:8081}
+          predicates:
+            - Path=/api/v1/orders/**
+        - id: inventory-service-route
+          uri: ${INVENTORY_SERVICE_URL:http://localhost:8082}
+          predicates:
+            - Path=/api/v1/inventory/**
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,gateway
+  endpoint:
+    health:
+      show-details: always
+
+scalefulfill:
+  rate-limiter:
+    capacity: 20
+    refill-tokens-per-second: 10
+    enabled: true
+
+logging:
+  level:
+    com.scalefulfill.gateway: INFO
+    org.springframework.cloud.gateway: INFO

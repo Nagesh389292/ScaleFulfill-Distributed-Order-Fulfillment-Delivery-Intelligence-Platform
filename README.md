@@ -95,7 +95,7 @@ scalefulfill/
 
 - [x] **Step 1:** Master Engineering Specification & Design Freeze ([docs/engineering-spec.md](file:///c:/Users/NAGESH%20REDDY/Desktop/New%20folder/docs/engineering-spec.md))
 - [x] **Phase 1:** Monolith Order & Inventory Core with PostgreSQL & Concurrency Tests ([docs/benchmarks/phase1-baseline.md](file:///c:/Users/NAGESH%20REDDY/Desktop/New%20folder/docs/benchmarks/phase1-baseline.md))
-- [ ] **Phase 2:** Microservices Decomposition & API Gateway
+- [x] **Phase 2:** Service Decomposition, API Gateway & Synchronous Resilience ([docs/benchmarks/phase2-decomposition.md](file:///c:/Users/NAGESH%20REDDY/Desktop/New%20folder/docs/benchmarks/phase2-decomposition.md))
 - [ ] **Phase 3:** Kafka Event Fabric & Transactional Outbox
 - [ ] **Phase 4:** Distributed Relational Sharding & Redis Concurrency
 - [ ] **Phase 5:** OpenSearch Distributed Indexing & Search
@@ -107,14 +107,22 @@ scalefulfill/
 
 ---
 
-## Phase 1 Monolith Baseline Performance
+## Phase 1 vs Phase 2 Empirical Benchmark Comparison
 
-Measured using automated multi-tier load test on Java 21 LTS runtime (`Spring Boot 3.3.4`):
+| Metric / Scenario | Phase 1 Monolith | Phase 2 Distributed Synchronous | Architectural Explanation |
+| :--- | :--- | :--- | :--- |
+| **Architecture Topology** | Single Process (In-Memory Calls) | Client → API Gateway → Order Svc → Inventory Svc | True distributed boundaries with independent microservice deployments |
+| **Database Ownership** | Shared PostgreSQL instance | Isolated `order_db` & `inventory_db` | Eliminates cross-domain schema coupling and DB connection exhaustion |
+| **Tier 1 (P50 Latency)** | 32.0 ms | 57.09 ms | Network hop overhead (Gateway routing + HTTP serialization) |
+| **Tier 2 (P95 Latency)** | 46.9 ms | 406.89 ms | Compounding thread latency across downstream boundaries |
+| **Tier 3 (Max Throughput)**| 512.6 req/s | 68.86 req/s | Synchronous thread blocking across 3 distributed tiers |
+| **Edge Protection** | None | Token Bucket Rate Limiting (HTTP 429) | Prevents upstream burst traffic from overwhelming backend services |
+| **Downstream Fault Handling**| Process crash | Resilience4j Circuit Breaker + Fallback (`PENDING_INVENTORY_VERIFICATION`) | Upstream thread pool protected from cascading exhaustion |
 
-| Concurrency Tier | Throughput | P50 Latency | P95 Latency | P99 Latency | Conflict Rate |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| **Tier 1 (Single Client, 100 req)** | **26.5 req/s** | 32.0 ms | 48.4 ms | 636.6 ms | 0.0% |
-| **Tier 2 (10 Clients, 500 req)** | **417.9 req/s** | 20.0 ms | 46.9 ms | 92.2 ms | 74.2% (Optimistic locks) |
-| **Tier 3 (25 Clients, 1000 req)** | **512.6 req/s** | 43.7 ms | 95.0 ms | 134.8 ms | 87.9% (Optimistic locks) |
+### The Critical Architectural Takeaway for Phase 3
+Phase 2 deliberately exposed the **inherent scalability and availability ceiling of synchronous distributed communication**:
+1. Inter-service HTTP serialization and gateway hops increase P50 latency from 32 ms to 57 ms.
+2. Synchronous blocking threads across services drop peak throughput from 512 req/s to 68.8 req/s under high concurrency.
+3. If the Inventory Service is slow or temporarily unavailable, synchronous callers must either block or degrade.
 
-*Key Takeaway:* Synchronous ACID locking enforces absolute zero overselling, but concurrent hot-row contention leads to optimistic locking rollbacks at scale, establishing the precise engineering rationale for Phase 2 decomposition and Phase 3 Kafka decoupling.
+This empirical evidence provides the **exact engineering rationale** for transitioning to **Phase 3: Asynchronous Event-Driven Architecture (Apache Kafka + Transactional Outbox Pattern + Idempotent Consumers)**.
