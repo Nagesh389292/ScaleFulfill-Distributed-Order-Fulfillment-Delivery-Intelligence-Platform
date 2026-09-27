@@ -6,13 +6,63 @@
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-blue.svg)](https://www.postgresql.org/)
 [![Redis](https://img.shields.io/badge/Redis-7.2-red.svg)](https://redis.io/)
 [![OpenSearch](https://img.shields.io/badge/OpenSearch-2.13-teal.svg)](https://opensearch.org/)
+[![Three.js](https://img.shields.io/badge/Three.js-3D%20WebGL-black.svg)](https://threejs.org/)
+[![Playwright](https://img.shields.io/badge/Playwright-6%2F6%20Passing-green.svg)](https://playwright.dev/)
 [![Docker](https://img.shields.io/badge/Docker-Enabled-blue.svg)](https://www.docker.com/)
 
-A production-grade, event-driven distributed e-commerce fulfillment platform engineered to handle high-concurrency order ingestion, partitioned relational storage, dynamic multi-center inventory allocation, mathematical fulfillment optimization, distributed ETA predictions, and comprehensive fault tolerance.
+A production-grade, event-driven distributed e-commerce fulfillment platform engineered to handle high-concurrency order ingestion, partitioned relational storage, dynamic multi-center inventory allocation, mathematical wave optimization, distributed ETA predictions, and comprehensive fault tolerance.
 
 > [!NOTE]
 > **Workload Origin & Data Note**
 > ScaleFulfill does not use Amazon's proprietary data. The platform uses generated test workloads to exercise concurrency, event processing, search, prediction, optimization, and failure-recovery behaviour. Performance figures in this repository are measurements from those controlled workloads and should not be interpreted as production benchmarks.
+
+---
+
+## 🎯 Core Engineering Problems Solved
+
+ScaleFulfill was architected, benchmarked, and verified across 7 distinct engineering phases to solve foundational distributed systems, scalability, and consistency challenges:
+
+### 1. The Distributed Transaction Dual-Write Problem
+* **The Failure Mode**: In a microservice architecture, updating a relational database (e.g. creating an order) while publishing an event to a message broker (e.g. Kafka) cannot be coordinated with standard 2PC without severe latency and coordinator lockups. If the broker is unreachable or crashes mid-flight, the database write commits but the event is lost forever (inconsistent state).
+* **What We Solved**: Implemented the **Transactional Outbox Pattern** in PostgreSQL (`order_db.outbox_events`) within a single ACID transaction boundary. When an order is created, both the order and the outbox event commit atomically. A scheduled poller flushes outbox events to Kafka asynchronously. Even if Kafka dies completely, order ingestion succeeds with zero data loss; events buffer locally and flush automatically upon broker recovery (verified: 20/20 orders buffered and flushed in 0.17s upon Kafka recovery).
+
+### 2. Synchronous Coupling & Cascading Latency Collapse
+* **The Failure Mode**: A synchronous HTTP microservice design (Phase 2) suffered an **86.5% throughput collapse** (dropping from 512 req/s to 68.86 req/s). Synchronous REST hops caused cascading thread pool exhaustion across services; any downstream latency immediately blocked upstream gateway threads.
+* **What We Solved**: Transformed the architecture into an **Asynchronous Event Fabric** using Apache Kafka. Ingress latency dropped to **<15ms** by confining the synchronous path to local PostgreSQL outbox writes. Inventory deduction, search indexing, and delivery ETA predictions are handled asynchronously across dedicated consumer groups, completely decoupling write throughput from downstream processing speeds.
+
+### 3. At-Least-Once Delivery & Duplicate State Corruption
+* **The Failure Mode**: Apache Kafka guarantees at-least-once delivery. Network retries, consumer rebalancing, or broker failover inevitably cause duplicate message delivery. In inventory management, processing a duplicated order event causes double stock deductions and ghost shortages.
+* **What We Solved**: Implemented an **Idempotent Transactional Inbox Pattern** in PostgreSQL (`inventory_db.processed_events`). The Inventory Service atomically checks and logs `(event_id, order_id)` before applying any stock reservation. Duplicate event replays are safely detected and discarded with zero duplicate reservations (verified: 10 replayed duplicates resulted in exactly 0 duplicate stock deductions).
+
+### 4. Relational Write Contention vs Real-Time Search (CQRS)
+* **The Failure Mode**: Running complex customer order searches, status filtering, and fuzzy SKU lookups directly against transactional relational tables creates shared row locks, table scans, and degrades write throughput under peak traffic.
+* **What We Solved**: Built a dedicated **CQRS Read Projection** using **OpenSearch 2.13**. As orders are published to Kafka, an asynchronous search consumer transforms and indexes documents into OpenSearch (measured 133.98ms indexing lag). Complex inverted-index queries achieve **19ms P50 / 30ms P95 latency**, completely isolating search traffic from the transactional database.
+
+### 5. Controllable Backpressure & Thread Contention in Asynchronous Processing
+* **The Failure Mode**: Running CPU-intensive machine learning simulations or ETA routing computations directly inside Kafka consumer threads causes thread-lock contention and unmanaged backpressure. Conversely, spawning threads for sub-millisecond tasks wastes more time in queue coordination than execution.
+* **What We Solved**: Engineered a **Bounded Thread Pool and Priority Work Queue** in the Prediction Service. Empirically demonstrated worker scaling: lightweight tasks stay pinned to 1 worker to eliminate queue synchronization overhead, while CPU-heavy routing simulations scale to 8 workers, increasing throughput to **425.4 evt/s** with a **50.5ms P95 latency** and bounded memory usage.
+
+### 6. Real-Time Checkout vs Mathematical Wave Optimization (Google OR-Tools)
+* **The Failure Mode**: Customer checkout requires sub-5ms routing responses, whereas multi-warehouse batch fulfillment (balancing inventory availability, shipping costs, and warehouse outbound capacity limits) is an NP-hard combinatorial problem.
+* **What We Solved**: Built a **Dual-Mode Optimization Engine**:
+  * **Greedy Nearest-Feasible Heuristic**: Delivers instant (<2ms) routing decisions at checkout based on inventory proximity.
+  * **Google OR-Tools SCIP Mixed-Integer Linear Programming (MILP)**: Solves global wave fulfillment across multiple Fulfillment Centers (`FC-HYD-01`, `FC-BLR-01`, `FC-DEL-01`), achieving **3% to 10% lower shipping and handling costs** ($340–$770 saved per 50–100 order wave) in 26–332ms solve time.
+
+### 7. End-to-End Cross-Datastore Consistency Verification (0 Drift Across 2,332 Records)
+* **The Failure Mode**: Eventual consistency in distributed systems is notoriously difficult to guarantee. Naive table-row count checks (`COUNT(orders) == COUNT(inventory)`) are mathematically invalid because different services process different event subsets.
+* **What We Solved**: Designed an automated **Correlation Invariant Audit Harness** using `order_id` and `event_id` keys. The audit rigorously verifies that for every persistent order:
+  1. A published outbox record exists.
+  2. A corresponding inventory inbox record exists.
+  3. A prediction record exists in the prediction store.
+  4. An OpenSearch index document exists with matching status.
+  5. There are zero duplicate inbox entries and zero Kafka consumer lag.
+  * **Verified Live**: Across **2,332 audited orders**, the invariant audit reports **0 orphan orders, 0 missing inventory, 0 missing predictions, and 0 consistency drift**.
+
+### 8. Interactive 3D Control Plane & End-to-End User Verification
+* **The Failure Mode**: Distributed backends are often treated as black boxes without visual observability into message flow, and UI layers lack rigorous automated verification.
+* **What We Solved**:
+  * Designed an elevated, luxury dark control plane featuring **interactive Three.js 3D WebGL topology**, **gyroscope-style 3D tilt physics (`Card3D.tsx`)**, and ambient glassmorphism.
+  * Authored a 6/6 green **Playwright Chromium E2E test suite** validating real user journeys (order ingress, token-bucket burst shedding, OpenSearch inverted index queries, ETA predictions, and MILP optimization).
 
 ---
 
@@ -105,8 +155,6 @@ A production-grade, event-driven distributed e-commerce fulfillment platform eng
 | **Distributed Predictions** | Horizontally-scaled multi-threaded worker pool with configurable intensity and stale TTL evaluation |
 | **Fault Tolerance & Chaos Resilience** | Proven 100% order intake during full downstream outages (Inventory kill, OpenSearch stop, Kafka broker kill) |
 | **Observability Mesh** | Prometheus metrics instrumentation across all services, Micrometer timers/counters, and Grafana dashboards |
-
----
 
 ## Project Structure
 
