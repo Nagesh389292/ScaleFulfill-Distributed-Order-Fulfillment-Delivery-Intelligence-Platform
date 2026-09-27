@@ -1,0 +1,107 @@
+{
+  "optimization": [
+    {
+      "batch_size": 10,
+      "greedy_cost": 834.82,
+      "milp_cost": 834.82,
+      "cost_savings_pct": 0.0,
+      "greedy_time_ms": 1.18,
+      "milp_time_ms": 37.46,
+      "time_ratio": 31.7,
+      "milp_status": "OPTIMAL",
+      "optimality_gap": 0.0,
+      "best_bound": 835.57,
+      "greedy_std_dev": 1.26,
+      "milp_std_dev": 1.26
+    },
+    {
+      "batch_size": 50,
+      "greedy_cost": 3358.6,
+      "milp_cost": 3017.87,
+      "cost_savings_pct": 10.15,
+      "greedy_time_ms": 1.04,
+      "milp_time_ms": 26.47,
+      "time_ratio": 25.5,
+      "milp_status": "OPTIMAL",
+      "optimality_gap": 0.0,
+      "best_bound": 3019.37,
+      "greedy_std_dev": 2.68,
+      "milp_std_dev": 2.53
+    },
+    {
+      "batch_size": 200,
+      "greedy_cost": 11114.69,
+      "milp_cost": 10611.6,
+      "cost_savings_pct": 4.53,
+      "greedy_time_ms": 3.22,
+      "milp_time_ms": 69.39,
+      "time_ratio": 21.5,
+      "milp_status": "OPTIMAL",
+      "optimality_gap": 0.0,
+      "best_bound": 10620.35,
+      "greedy_std_dev": 12.82,
+      "milp_std_dev": 14.46
+    },
+    {
+      "batch_size": 500,
+      "greedy_cost": 26678.56,
+      "milp_cost": 25908.09,
+      "cost_savings_pct": 2.89,
+      "greedy_time_ms": 10.91,
+      "milp_time_ms": 237.39,
+      "time_ratio": 21.8,
+      "milp_status": "OPTIMAL",
+      "optimality_gap": 0.0,
+      "best_bound": 25926.34,
+      "greedy_std_dev": 31.98,
+      "milp_std_dev": 31.98
+    }
+  ],
+  "scaling": [
+    {
+      "workers": 1,
+      "events": 1000,
+      "duration_s": 1.68,
+      "throughput_eps": 594.7,
+      "mean_ms": 25.18,
+      "p50_ms": 23.06,
+      "p95_ms": 40.98,
+      "p99_ms": 82.75,
+      "queue_depth": 0
+    },
+    {
+      "workers": 2,
+      "events": 1000,
+      "duration_s": 2.48,
+      "throughput_eps": 402.5,
+      "mean_ms": 36.69,
+      "p50_ms": 32.91,
+      "p95_ms": 68.89,
+      "p99_ms": 84.11,
+      "queue_depth": 0
+    },
+    {
+      "workers": 4,
+      "events": 1000,
+      "duration_s": 2.66,
+      "throughput_eps": 375.6,
+      "mean_ms": 39.02,
+      "p50_ms": 36.91,
+      "p95_ms": 63.99,
+      "p99_ms": 77.29,
+      "queue_depth": 0
+    },
+    {
+      "workers": 8,
+      "events": 1000,
+      "duration_s": 2.7,
+      "throughput_eps": 370.1,
+      "mean_ms": 39.56,
+      "p50_ms": 37.25,
+      "p95_ms": 64.72,
+      "p99_ms": 92.28,
+      "queue_depth": 0
+    }
+  ],
+  "timestamp": 1790530724.462028
+}

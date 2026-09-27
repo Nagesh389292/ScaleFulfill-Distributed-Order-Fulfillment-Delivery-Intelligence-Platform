@@ -98,24 +98,20 @@ scalefulfill/
 - [x] **Phase 2:** Service Decomposition, API Gateway & Synchronous Resilience ([docs/benchmarks/phase2-decomposition.md](file:///c:/Users/NAGESH%20REDDY/Desktop/New%20folder/docs/benchmarks/phase2-decomposition.md))
 - [x] **Phase 3:** Kafka Event Fabric, Transactional Outbox & Idempotent Consumers ([docs/benchmarks/phase3-event-driven-kafka.md](file:///c:/Users/NAGESH%20REDDY/Desktop/New%20folder/docs/benchmarks/phase3-event-driven-kafka.md))
 - [x] **Phase 4:** OpenSearch Distributed Indexing & Search ([docs/benchmarks/phase4-opensearch-search.md](file:///c:/Users/NAGESH%20REDDY/Desktop/New%20folder/docs/benchmarks/phase4-opensearch-search.md))
-- [ ] **Phase 5:** Distributed ETA Prediction Engine
-- [ ] **Phase 6:** Mathematical Fulfillment Optimization (Greedy vs LP)
+- [x] **Phase 5:** Full Observability Stack (Prometheus + Grafana + Failure Telemetry) ([docs/benchmarks/phase5-observability-verification.md](file:///c:/Users/NAGESH%20REDDY/Desktop/New%20folder/docs/benchmarks/phase5-observability-verification.md))
+- [x] **Phase 6:** Distributed Prediction & Mathematical Optimization Engine (OR-Tools vs Greedy) ([docs/benchmarks/phase6-prediction-optimization.md](file:///c:/Users/NAGESH%20REDDY/Desktop/New%20folder/docs/benchmarks/phase6-prediction-optimization.md))
 - [ ] **Phase 7:** Distributed Relational Sharding & Redis Concurrency
 - [ ] **Phase 8:** Fault Tolerance, Circuit Breakers & DLQ Replay
-- [ ] **Phase 9:** Observability & Distributed Tracing (Prometheus/Grafana)
-- [ ] **Phase 10:** Operations Copilot & Operations Dashboard
+- [ ] **Phase 9:** End-to-End Stress & Chaos Engineering Under Failure
+- [ ] **Phase 10:** Operations Copilot & Executive Dashboard
 
 ---
 
 ## Phase 1 vs Phase 2 vs Phase 3 vs Phase 4 Empirical Benchmark Comparison
 
-| Metric / Scenario | Phase 1 Monolith | Phase 2 Distributed Synchronous | Phase 3 Event-Driven (Kafka + Outbox) | Phase 4 CQRS Distributed Search (OpenSearch) | Architectural Explanation |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| **Architecture Topology** | Single Process (In-Memory Calls) | Client -> API Gateway -> Order Svc -> Inventory Svc | Gateway -> Order Svc -> Outbox -> Kafka -> Idempotent Consumer | Gateway -> Search Svc -> OpenSearch 2.12 (asynchronously fed via Kafka) | Complete CQRS read/write segregation; zero read queries touch transactional OLTP databases |
-| **Database Ownership** | Shared PostgreSQL instance | Isolated order_db & inventory_db | Isolated order_db & inventory_db with Outbox & Inbox tables | Isolated OLTP databases + Inverted Search Indices (orders-index, products-index) | High-cardinality indexing and full-text searches offloaded from relational storage |
-| **Order Acceptance Boundary** | Synchronous Stock Reservation | Synchronous Distributed HTTP | Asynchronous local outbox commit (<15 ms) | Asynchronous local outbox commit (<15 ms) | Phase 3 removed synchronous downstream dependency from client path; local outbox commit completes without waiting for indexing |
-| **Search / Query Latency** | Direct SQL query (locks / table scans) | Direct SQL query on Order DB | Direct SQL query on Order DB | **19.0 ms (P50), 30.0 ms (P95) in OpenSearch** | BM25 scoring and term dictionaries provide sub-30ms multi-attribute filtering |
-| **Indexing Lag (DB Commit -> Searchable)** | 0 ms (immediate read-after-write) | 0 ms (immediate read-after-write) | N/A (no dedicated search index) | **133.98 ms (Empirical End-to-End Lag)** | Eventual consistency window for asynchronous Kafka event propagation |
-| **Search Outage Resilience** | N/A | N/A | N/A | **Zero Data Loss (Kafka Buffered)** | Search outage produces 0% impact on order intake; consumer catches up upon OpenSearch recovery |
-| **Edge Protection** | None | Token Bucket Rate Limiting (HTTP 429) | Token Bucket Rate Limiting (HTTP 429) | Token Bucket Rate Limiting (HTTP 429) | Protects search endpoints against scraper abuse and high-frequency bursts |
-| **Dual-Write Resilience** | N/A (single ACID DB) | Unprotected (partial failures risk orphaned state) | Guaranteed via Transactional Outbox | Guaranteed via Outbox + Idempotent Kafka Consumer | Orders and outbox records commit atomically; Kafka delivers events durably to search projection |
+| Metric / Scenario | Phase 1 Monolith | Phase 2 Distributed Synchronous | Phase 3 Event-Driven (Kafka + Outbox) | Phase 4 CQRS Distributed Search (OpenSearch) | Phase 5 Full Observability Stack | Phase 6 Prediction & Mathematical Optimization |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| **Architecture Topology** | Single Process (In-Memory Calls) | Client -> API Gateway -> Order Svc -> Inventory Svc | Gateway -> Order Svc -> Outbox -> Kafka -> Idempotent Consumer | Gateway -> Search Svc -> OpenSearch 2.12 (asynchronously fed via Kafka) | 4 Microservices + Prometheus + Grafana | Dedicated `prediction-service` + OR-Tools MILP Solver Engine |
+| **Throughput / Latency** | 512 req/s (P95: 18ms) | 68.86 req/s (P95: 75.3ms) | Ingress <15.0ms (471.4 evt/s outbox burst) | 19.0 ms (P50), 30.0 ms (P95) | 5/5 Targets UP, 9 Custom Metric Families | 370–594 evt/s prediction; 1.0–237ms solver |
+| **Decision / Calculation Mode** | Static relational queries | Synchronous HTTP calls | Asynchronous transactional outbox | Inverted index search & aggregation | Full-system failure detection & metric scrape | Greedy heuristic (<2ms) vs OR-Tools MILP (26–237ms, 3–10% cost savings) |
+| **Resilience & Backpressure** | Database row lock wait | Circuit breaker & Redis rate limiting | Poison-pill quarantine in Kafka DLQ | Zero intake impact during OpenSearch outage | Automated detection of Kafka consumer lag & outage | Bounded worker thread pool (queue: 1000) with TTL stale prediction filtering |

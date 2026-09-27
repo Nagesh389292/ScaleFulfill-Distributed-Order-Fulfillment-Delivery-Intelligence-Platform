@@ -17,6 +17,7 @@
         <module>services/order-service</module>
         <module>services/api-gateway</module>
         <module>services/search-service</module>
+        <module>services/prediction-service</module>
     </modules>
 
     <properties>

@@ -1,0 +1,50 @@
+server:
+  port: 8085
+
+spring:
+  application:
+    name: prediction-service
+
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    consumer:
+      group-id: prediction-service-group
+      auto-offset-reset: earliest
+      enable-auto-commit: false
+
+scalefulfill:
+  kafka:
+    topics:
+      order-created: order.events.created
+      prediction-dlq: order.events.prediction.DLQ
+  prediction:
+    ttl-minutes: 15
+    pool:
+      core-size: 4
+      max-size: 8
+      queue-capacity: 1000
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,metrics
+  endpoint:
+    prometheus:
+      enabled: true
+    health:
+      show-details: always
+  metrics:
+    tags:
+      application: ${spring.application.name}
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
+        scalefulfill.prediction.processing.duration: true
+        scalefulfill.optimization.solve.duration: true
+
+logging:
+  level:
+    root: INFO
+    com.scalefulfill.prediction: INFO
+    org.springframework.kafka: INFO

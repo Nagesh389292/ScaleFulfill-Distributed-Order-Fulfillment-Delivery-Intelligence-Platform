@@ -34,6 +34,13 @@ scrape_configs:
         labels:
           service: search-service
 
+  - job_name: 'prediction-service'
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      - targets: ['host.docker.internal:8085']
+        labels:
+          service: prediction-service
+
   # Prometheus self-monitoring
   - job_name: 'prometheus'
     static_configs:
