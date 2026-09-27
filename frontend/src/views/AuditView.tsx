@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { CheckCircle2, RefreshCw, Server, Flame, AlertOctagon, Terminal } from 'lucide-react';
+import { Card3D } from '../components/Card3D';
 
 export const AuditView: React.FC = () => {
   const [runningAudit, setRunningAudit] = useState(false);
@@ -85,65 +86,71 @@ export const AuditView: React.FC = () => {
 
       {/* Chaos Test Scenarios & Fault Isolation Matrix */}
       <div className="grid-3col" style={{ marginBottom: '24px' }}>
-        <div className="eng-card" style={{ margin: 0 }}>
-          <div className="eng-card-header">
-            <div className="eng-card-title">
-              <Flame size={14} color="#f87171" />
-              Kafka Broker Outage
+        <Card3D glowColor="rgba(244, 63, 94, 0.3)">
+          <div style={{ padding: '20px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 700, fontSize: '14px', color: '#f8fafc' }}>
+                <Flame size={16} color="#f87171" />
+                Kafka Broker Outage
+              </div>
+              <span className="badge badge-rose">Chaos Test</span>
             </div>
-            <span className="badge badge-rose">Chaos Test</span>
+            <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '14px' }}>
+              Broker killed via <code>docker kill</code> during sustained direct order ingress.
+            </p>
+            <div style={{ background: '#0b0f19', padding: '12px', borderRadius: '10px', fontSize: '11px', display: 'flex', flexDirection: 'column', gap: '6px', fontFamily: 'var(--font-mono)' }}>
+              <div><strong>Orders Submitted:</strong> 20</div>
+              <div><strong>Committed to DB:</strong> 20/20 (100%)</div>
+              <div><strong>Outbox Buffer Duration:</strong> 8.33s</div>
+              <div><strong>Recovery Flush Time:</strong> 0.17s</div>
+              <span className="badge badge-emerald" style={{ marginTop: '4px' }}>Zero Lost Events</span>
+            </div>
           </div>
-          <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '14px' }}>
-            Broker killed via <code>docker kill</code> during sustained direct order ingress.
-          </p>
-          <div style={{ background: '#0b0f19', padding: '12px', borderRadius: '6px', fontSize: '11px', display: 'flex', flexDirection: 'column', gap: '6px', fontFamily: 'var(--font-mono)' }}>
-            <div><strong>Orders Submitted:</strong> 20</div>
-            <div><strong>Committed to DB:</strong> 20/20 (100%)</div>
-            <div><strong>Outbox Buffer Duration:</strong> 8.33s</div>
-            <div><strong>Recovery Flush Time:</strong> 0.17s</div>
-            <span className="badge badge-emerald" style={{ marginTop: '4px' }}>Zero Lost Events</span>
-          </div>
-        </div>
+        </Card3D>
 
-        <div className="eng-card" style={{ margin: 0 }}>
-          <div className="eng-card-header">
-            <div className="eng-card-title">
-              <Server size={14} color="#fbbf24" />
-              Inventory Consumer Crash
+        <Card3D glowColor="rgba(251, 191, 36, 0.3)">
+          <div style={{ padding: '20px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 700, fontSize: '14px', color: '#f8fafc' }}>
+                <Server size={16} color="#fbbf24" />
+                Inventory Consumer Crash
+              </div>
+              <span className="badge badge-amber">Crash Test</span>
             </div>
-            <span className="badge badge-amber">Crash Test</span>
+            <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '14px' }}>
+              Process terminated mid-batch before Kafka consumer offsets could be committed.
+            </p>
+            <div style={{ background: '#0b0f19', padding: '12px', borderRadius: '10px', fontSize: '11px', display: 'flex', flexDirection: 'column', gap: '6px', fontFamily: 'var(--font-mono)' }}>
+              <div><strong>Redelivered Events:</strong> 15</div>
+              <div><strong>Inbox PK Violations:</strong> 15 (Handled)</div>
+              <div><strong>Duplicate Reservations:</strong> 0</div>
+              <div><strong>Final State:</strong> Consistent</div>
+              <span className="badge badge-emerald" style={{ marginTop: '4px' }}>Idempotency Verified</span>
+            </div>
           </div>
-          <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '14px' }}>
-            Process terminated mid-batch before Kafka consumer offsets could be committed.
-          </p>
-          <div style={{ background: '#0b0f19', padding: '12px', borderRadius: '6px', fontSize: '11px', display: 'flex', flexDirection: 'column', gap: '6px', fontFamily: 'var(--font-mono)' }}>
-            <div><strong>Redelivered Events:</strong> 15</div>
-            <div><strong>Inbox PK Violations:</strong> 15 (Handled)</div>
-            <div><strong>Duplicate Reservations:</strong> 0</div>
-            <div><strong>Final State:</strong> Consistent</div>
-            <span className="badge badge-emerald" style={{ marginTop: '4px' }}>Idempotency Verified</span>
-          </div>
-        </div>
+        </Card3D>
 
-        <div className="eng-card" style={{ margin: 0 }}>
-          <div className="eng-card-header">
-            <div className="eng-card-title">
-              <AlertOctagon size={14} color="#38bdf8" />
-              Gateway Token-Bucket Burst
+        <Card3D glowColor="rgba(56, 189, 248, 0.3)">
+          <div style={{ padding: '20px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 700, fontSize: '14px', color: '#f8fafc' }}>
+                <AlertOctagon size={16} color="#38bdf8" />
+                Gateway Token-Bucket Burst
+              </div>
+              <span className="badge badge-cyan">Load Throttling</span>
             </div>
-            <span className="badge badge-cyan">Load Throttling</span>
+            <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '14px' }}>
+              Burst traffic at 200 req/s exceeding configured token bucket capacity.
+            </p>
+            <div style={{ background: '#0b0f19', padding: '12px', borderRadius: '10px', fontSize: '11px', display: 'flex', flexDirection: 'column', gap: '6px', fontFamily: 'var(--font-mono)' }}>
+              <div><strong>Target Rate:</strong> 200 req/s</div>
+              <div><strong>HTTP 429 Throttled:</strong> Handled gracefully</div>
+              <div><strong>HTTP 5xx Server Errors:</strong> 0</div>
+              <div><strong>System Degradation:</strong> None</div>
+              <span className="badge badge-emerald" style={{ marginTop: '4px' }}>Zero Server Crashes</span>
+            </div>
           </div>
-          <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '14px' }}>
-            Burst traffic at 200 req/s exceeding configured token bucket capacity.
-          </p>
-          <div style={{ background: '#0b0f19', padding: '12px', borderRadius: '6px', fontSize: '11px', display: 'flex', flexDirection: 'column', gap: '6px', fontFamily: 'var(--font-mono)' }}>
-            <div><strong>Target Rate:</strong> 200 req/s</div>
-            <div><strong>HTTP 429 Throttled:</strong> Handled gracefully</div>
-            <div><strong>HTTP 5xx Server Errors:</strong> 0</div>
-            <div><strong>System Degradation:</strong> None</div>
-            <span className="badge badge-emerald" style={{ marginTop: '4px' }}>Zero Server Crashes</span>
-          </div>
-        </div>
+        </Card3D>
       </div>
 
       {/* Reproduction Commands */}

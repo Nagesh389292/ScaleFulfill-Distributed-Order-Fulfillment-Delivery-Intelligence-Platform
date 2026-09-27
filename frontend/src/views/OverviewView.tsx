@@ -14,6 +14,8 @@ import { SearchPanel } from '../components/SearchPanel';
 import { OrderFeed } from '../components/OrderFeed';
 import { PredictionCard } from '../components/PredictionCard';
 import { OptimizerPanel } from '../components/OptimizerPanel';
+import { Network3DCanvas } from '../components/Network3DCanvas';
+import { Card3D } from '../components/Card3D';
 import { fetchRecentOrders } from '../api/client';
 import type { CreateOrderResponse, SearchOrderDoc } from '../api/client';
 
@@ -147,20 +149,25 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
         </div>
       </div>
 
-      {/* EVENT PIPELINE TOPOLOGY DIAGRAM */}
+      {/* EVENT PIPELINE TOPOLOGY & 3D MESH CANVAS */}
       <div className="eng-card" style={{ marginBottom: '24px' }}>
         <div className="eng-card-header">
           <div className="eng-card-title">
             <Layers size={15} color="#a78bfa" />
-            Asynchronous Event Pipeline Topology
+            Asynchronous Event Pipeline & 3D Cluster Topology
           </div>
           <span className="badge badge-cyan">AT-LEAST-ONCE DELIVERY WITH IDEMPOTENT CONSUMERS</span>
+        </div>
+
+        {/* 3D WebGL Mesh Scene */}
+        <div style={{ marginBottom: '16px' }}>
+          <Network3DCanvas height={220} />
         </div>
 
         <div style={{
           background: '#0b0f19',
           border: '1px solid var(--border-subtle)',
-          borderRadius: '6px',
+          borderRadius: '12px',
           padding: '16px 20px',
           fontFamily: 'var(--font-mono)',
           fontSize: '12px',
@@ -293,29 +300,37 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
         </p>
 
         <div className="grid-4col">
-          <div style={{ background: '#0b0f19', padding: '12px', borderRadius: '6px', border: '1px solid var(--border-subtle)' }}>
-            <div style={{ color: '#94a3b8', fontSize: '11px' }}>Test Orders Audited</div>
-            <div style={{ fontSize: '1.25rem', fontWeight: 700, color: '#38bdf8', fontFamily: 'var(--font-mono)' }}>2,332</div>
-            <div style={{ fontSize: '10px', color: '#64748b' }}>Locally generated workload</div>
-          </div>
+          <Card3D glowColor="rgba(56, 189, 248, 0.25)">
+            <div style={{ padding: '16px' }}>
+              <div style={{ color: '#94a3b8', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Test Orders Audited</div>
+              <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#38bdf8', fontFamily: 'var(--font-mono)', margin: '4px 0' }}>2,332</div>
+              <div style={{ fontSize: '10px', color: '#64748b' }}>Locally generated workload</div>
+            </div>
+          </Card3D>
 
-          <div style={{ background: '#0b0f19', padding: '12px', borderRadius: '6px', border: '1px solid var(--border-subtle)' }}>
-            <div style={{ color: '#94a3b8', fontSize: '11px' }}>Missing Projections</div>
-            <div style={{ fontSize: '1.25rem', fontWeight: 700, color: '#34d399', fontFamily: 'var(--font-mono)' }}>0</div>
-            <div style={{ fontSize: '10px', color: '#64748b' }}>PostgreSQL = OpenSearch</div>
-          </div>
+          <Card3D glowColor="rgba(52, 211, 153, 0.25)">
+            <div style={{ padding: '16px' }}>
+              <div style={{ color: '#94a3b8', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Missing Projections</div>
+              <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#34d399', fontFamily: 'var(--font-mono)', margin: '4px 0' }}>0</div>
+              <div style={{ fontSize: '10px', color: '#64748b' }}>PostgreSQL = OpenSearch</div>
+            </div>
+          </Card3D>
 
-          <div style={{ background: '#0b0f19', padding: '12px', borderRadius: '6px', border: '1px solid var(--border-subtle)' }}>
-            <div style={{ color: '#94a3b8', fontSize: '11px' }}>Duplicate Reservations</div>
-            <div style={{ fontSize: '1.25rem', fontWeight: 700, color: '#34d399', fontFamily: 'var(--font-mono)' }}>0</div>
-            <div style={{ fontSize: '10px', color: '#64748b' }}>Inbox primary key drop</div>
-          </div>
+          <Card3D glowColor="rgba(52, 211, 153, 0.25)">
+            <div style={{ padding: '16px' }}>
+              <div style={{ color: '#94a3b8', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Duplicate Reservations</div>
+              <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#34d399', fontFamily: 'var(--font-mono)', margin: '4px 0' }}>0</div>
+              <div style={{ fontSize: '10px', color: '#64748b' }}>Inbox primary key drop</div>
+            </div>
+          </Card3D>
 
-          <div style={{ background: '#0b0f19', padding: '12px', borderRadius: '6px', border: '1px solid var(--border-subtle)' }}>
-            <div style={{ color: '#94a3b8', fontSize: '11px' }}>Kafka Consumer Lag</div>
-            <div style={{ fontSize: '1.25rem', fontWeight: 700, color: '#34d399', fontFamily: 'var(--font-mono)' }}>0</div>
-            <div style={{ fontSize: '10px', color: '#64748b' }}>All partitions fully drained</div>
-          </div>
+          <Card3D glowColor="rgba(167, 139, 250, 0.25)">
+            <div style={{ padding: '16px' }}>
+              <div style={{ color: '#94a3b8', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Kafka Consumer Lag</div>
+              <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#a78bfa', fontFamily: 'var(--font-mono)', margin: '4px 0' }}>0</div>
+              <div style={{ fontSize: '10px', color: '#64748b' }}>All partitions fully drained</div>
+            </div>
+          </Card3D>
         </div>
       </div>
     </div>

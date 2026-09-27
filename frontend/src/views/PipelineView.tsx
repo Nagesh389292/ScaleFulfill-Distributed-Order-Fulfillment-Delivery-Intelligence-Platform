@@ -1,5 +1,7 @@
 import React from 'react';
 import { Layers, Activity, Database } from 'lucide-react';
+import { Network3DCanvas } from '../components/Network3DCanvas';
+import { Card3D } from '../components/Card3D';
 
 export const PipelineView: React.FC = () => {
   return (
@@ -19,33 +21,48 @@ export const PipelineView: React.FC = () => {
         </div>
       </div>
 
-      {/* Kafka Topic Specification */}
+      {/* Kafka Topic Specification & 3D Interactive Topology */}
       <div className="eng-card" style={{ marginBottom: '24px' }}>
         <div className="eng-card-header">
           <div className="eng-card-title">
             <Activity size={15} color="#c084fc" />
-            Kafka Topic Specification: order.events.created
+            Kafka Topic Specification & 3D Cluster Mesh
           </div>
           <span className="badge badge-cyan">PARTITIONED BY ORDER_ID</span>
         </div>
 
+        <div style={{ marginBottom: '20px' }}>
+          <Network3DCanvas height={240} />
+        </div>
+
         <div className="grid-4col" style={{ marginBottom: '16px' }}>
-          <div style={{ background: '#0b0f19', padding: '12px', borderRadius: '6px', border: '1px solid var(--border-subtle)' }}>
-            <div style={{ color: 'var(--text-dim)', fontSize: '11px' }}>TOPIC NAME</div>
-            <div className="mono-text" style={{ fontSize: '13px', fontWeight: 600, color: '#38bdf8' }}>order.events.created</div>
-          </div>
-          <div style={{ background: '#0b0f19', padding: '12px', borderRadius: '6px', border: '1px solid var(--border-subtle)' }}>
-            <div style={{ color: 'var(--text-dim)', fontSize: '11px' }}>PARTITION COUNT</div>
-            <div className="mono-text" style={{ fontSize: '13px', fontWeight: 600, color: '#34d399' }}>3 Partitions</div>
-          </div>
-          <div style={{ background: '#0b0f19', padding: '12px', borderRadius: '6px', border: '1px solid var(--border-subtle)' }}>
-            <div style={{ color: 'var(--text-dim)', fontSize: '11px' }}>PARTITION KEY</div>
-            <div className="mono-text" style={{ fontSize: '13px', fontWeight: 600, color: '#fbbf24' }}>order_id (murmur2)</div>
-          </div>
-          <div style={{ background: '#0b0f19', padding: '12px', borderRadius: '6px', border: '1px solid var(--border-subtle)' }}>
-            <div style={{ color: 'var(--text-dim)', fontSize: '11px' }}>CLEANUP POLICY</div>
-            <div className="mono-text" style={{ fontSize: '13px', fontWeight: 600, color: '#c084fc' }}>Delete (7 days)</div>
-          </div>
+          <Card3D glowColor="rgba(56, 189, 248, 0.25)">
+            <div style={{ padding: '14px' }}>
+              <div style={{ color: 'var(--text-dim)', fontSize: '11px', textTransform: 'uppercase' }}>TOPIC NAME</div>
+              <div className="mono-text" style={{ fontSize: '13px', fontWeight: 700, color: '#38bdf8', marginTop: '4px' }}>order.events.created</div>
+            </div>
+          </Card3D>
+
+          <Card3D glowColor="rgba(52, 211, 153, 0.25)">
+            <div style={{ padding: '14px' }}>
+              <div style={{ color: 'var(--text-dim)', fontSize: '11px', textTransform: 'uppercase' }}>PARTITION COUNT</div>
+              <div className="mono-text" style={{ fontSize: '13px', fontWeight: 700, color: '#34d399', marginTop: '4px' }}>3 Partitions</div>
+            </div>
+          </Card3D>
+
+          <Card3D glowColor="rgba(251, 191, 36, 0.25)">
+            <div style={{ padding: '14px' }}>
+              <div style={{ color: 'var(--text-dim)', fontSize: '11px', textTransform: 'uppercase' }}>PARTITION KEY</div>
+              <div className="mono-text" style={{ fontSize: '13px', fontWeight: 700, color: '#fbbf24', marginTop: '4px' }}>order_id (murmur2)</div>
+            </div>
+          </Card3D>
+
+          <Card3D glowColor="rgba(192, 132, 252, 0.25)">
+            <div style={{ padding: '14px' }}>
+              <div style={{ color: 'var(--text-dim)', fontSize: '11px', textTransform: 'uppercase' }}>CLEANUP POLICY</div>
+              <div className="mono-text" style={{ fontSize: '13px', fontWeight: 700, color: '#c084fc', marginTop: '4px' }}>Delete (7 days)</div>
+            </div>
+          </Card3D>
         </div>
 
         <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>

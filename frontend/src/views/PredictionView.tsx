@@ -3,6 +3,7 @@ import { Cpu } from 'lucide-react';
 import { PredictionCard } from '../components/PredictionCard';
 import { getPredictionStats } from '../api/client';
 import type { PredictionStats } from '../api/client';
+import { Card3D } from '../components/Card3D';
 
 interface PredictionViewProps {
   selectedOrderId: string | null;
@@ -38,33 +39,45 @@ export const PredictionView: React.FC<PredictionViewProps> = ({ selectedOrderId 
 
       {/* Worker Pool Telemetry Grid */}
       <div className="grid-4col" style={{ marginBottom: '20px' }}>
-        <div className="eng-card" style={{ padding: '12px 16px', margin: 0 }}>
-          <div style={{ fontSize: '11px', color: 'var(--text-dim)' }}>ACTIVE WORKER THREADS</div>
-          <div style={{ fontSize: '14px', fontWeight: 600, color: '#38bdf8', fontFamily: 'var(--font-mono)' }}>
-            {stats ? `${stats.activeWorkers} / ${stats.corePoolSize} Threads` : '8 / 8 Active'}
+        <Card3D glowColor="rgba(56, 189, 248, 0.25)">
+          <div style={{ padding: '16px' }}>
+            <div style={{ fontSize: '11px', color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>ACTIVE WORKER THREADS</div>
+            <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#38bdf8', fontFamily: 'var(--font-mono)', margin: '4px 0' }}>
+              {stats ? `${stats.activeWorkers} / ${stats.corePoolSize}` : '8 / 8'}
+            </div>
+            <div style={{ fontSize: '10px', color: '#64748b' }}>Thread pool executor</div>
           </div>
-        </div>
+        </Card3D>
 
-        <div className="eng-card" style={{ padding: '12px 16px', margin: 0 }}>
-          <div style={{ fontSize: '11px', color: 'var(--text-dim)' }}>BOUNDED QUEUE DEPTH</div>
-          <div style={{ fontSize: '14px', fontWeight: 600, color: '#34d399', fontFamily: 'var(--font-mono)' }}>
-            {stats ? `${stats.queueDepth} queued (${stats.queueRemaining} capacity)` : '0 queued (1000 capacity)'}
+        <Card3D glowColor="rgba(52, 211, 153, 0.25)">
+          <div style={{ padding: '16px' }}>
+            <div style={{ fontSize: '11px', color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>BOUNDED QUEUE DEPTH</div>
+            <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#34d399', fontFamily: 'var(--font-mono)', margin: '4px 0' }}>
+              {stats ? stats.queueDepth : 0} <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 400 }}>/ 1000 max</span>
+            </div>
+            <div style={{ fontSize: '10px', color: '#64748b' }}>ArrayBlockingQueue backpressure</div>
           </div>
-        </div>
+        </Card3D>
 
-        <div className="eng-card" style={{ padding: '12px 16px', margin: 0 }}>
-          <div style={{ fontSize: '11px', color: 'var(--text-dim)' }}>PREDICTIONS COMPUTED</div>
-          <div style={{ fontSize: '14px', fontWeight: 600, color: '#fbbf24', fontFamily: 'var(--font-mono)' }}>
-            {stats ? stats.totalPredictions.toLocaleString() : '2,332+'}
+        <Card3D glowColor="rgba(251, 191, 36, 0.25)">
+          <div style={{ padding: '16px' }}>
+            <div style={{ fontSize: '11px', color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>PREDICTIONS COMPUTED</div>
+            <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#fbbf24', fontFamily: 'var(--font-mono)', margin: '4px 0' }}>
+              {stats ? stats.totalPredictions.toLocaleString() : '2,332+'}
+            </div>
+            <div style={{ fontSize: '10px', color: '#64748b' }}>Deterministic eta-v1 inferences</div>
           </div>
-        </div>
+        </Card3D>
 
-        <div className="eng-card" style={{ padding: '12px 16px', margin: 0 }}>
-          <div style={{ fontSize: '11px', color: 'var(--text-dim)' }}>STALE ACCESS DETECTIONS</div>
-          <div style={{ fontSize: '14px', fontWeight: 600, color: '#c084fc', fontFamily: 'var(--font-mono)' }}>
-            {stats ? stats.staleAccessCount : 0} (TTL Expired)
+        <Card3D glowColor="rgba(192, 132, 252, 0.25)">
+          <div style={{ padding: '16px' }}>
+            <div style={{ fontSize: '11px', color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>STALE ACCESS DETECTIONS</div>
+            <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#c084fc', fontFamily: 'var(--font-mono)', margin: '4px 0' }}>
+              {stats ? stats.staleAccessCount : 0}
+            </div>
+            <div style={{ fontSize: '10px', color: '#64748b' }}>Redis TTL evictions handled</div>
           </div>
-        </div>
+        </Card3D>
       </div>
 
       {/* Interactive Prediction Query Card */}

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Warehouse, RefreshCw, ShieldCheck } from 'lucide-react';
 import { getInventory } from '../api/client';
 import type { InventoryResponse } from '../api/client';
+import { Card3D } from '../components/Card3D';
 
 export const InventoryView: React.FC = () => {
   const [productId, setProductId] = useState('PROD-101');
@@ -87,29 +88,35 @@ export const InventoryView: React.FC = () => {
 
       {/* Aggregate Stock KPI Strip */}
       <div className="grid-3col" style={{ marginBottom: '24px' }}>
-        <div className="eng-card" style={{ margin: 0 }}>
-          <div style={{ fontSize: '11px', color: 'var(--text-dim)' }}>TOTAL AVAILABLE UNITS</div>
-          <div style={{ fontSize: '1.5rem', fontWeight: 700, color: '#34d399', fontFamily: 'var(--font-mono)' }}>
-            {inventory ? inventory.totalAvailableQuantity.toLocaleString() : 'Loading...'}
+        <Card3D glowColor="rgba(52, 211, 153, 0.25)">
+          <div style={{ padding: '20px' }}>
+            <div style={{ fontSize: '11px', color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>TOTAL AVAILABLE UNITS</div>
+            <div style={{ fontSize: '1.8rem', fontWeight: 800, color: '#34d399', fontFamily: 'var(--font-mono)', margin: '6px 0' }}>
+              {inventory ? inventory.totalAvailableQuantity.toLocaleString() : 'Loading...'}
+            </div>
+            <div style={{ fontSize: '11px', color: '#64748b' }}>Unreserved warehouse stock</div>
           </div>
-          <div style={{ fontSize: '11px', color: '#64748b' }}>Unreserved warehouse stock</div>
-        </div>
+        </Card3D>
 
-        <div className="eng-card" style={{ margin: 0 }}>
-          <div style={{ fontSize: '11px', color: 'var(--text-dim)' }}>TOTAL RESERVED UNITS</div>
-          <div style={{ fontSize: '1.5rem', fontWeight: 700, color: '#fbbf24', fontFamily: 'var(--font-mono)' }}>
-            {inventory ? inventory.totalReservedQuantity.toLocaleString() : 'Loading...'}
+        <Card3D glowColor="rgba(251, 191, 36, 0.25)">
+          <div style={{ padding: '20px' }}>
+            <div style={{ fontSize: '11px', color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>TOTAL RESERVED UNITS</div>
+            <div style={{ fontSize: '1.8rem', fontWeight: 800, color: '#fbbf24', fontFamily: 'var(--font-mono)', margin: '6px 0' }}>
+              {inventory ? inventory.totalReservedQuantity.toLocaleString() : 'Loading...'}
+            </div>
+            <div style={{ fontSize: '11px', color: '#64748b' }}>Committed to pending orders</div>
           </div>
-          <div style={{ fontSize: '11px', color: '#64748b' }}>Committed to pending orders</div>
-        </div>
+        </Card3D>
 
-        <div className="eng-card" style={{ margin: 0 }}>
-          <div style={{ fontSize: '11px', color: 'var(--text-dim)' }}>TOTAL POOLED INVENTORY</div>
-          <div style={{ fontSize: '1.5rem', fontWeight: 700, color: '#38bdf8', fontFamily: 'var(--font-mono)' }}>
-            {inventory ? (inventory.totalAvailableQuantity + inventory.totalReservedQuantity).toLocaleString() : 'Loading...'}
+        <Card3D glowColor="rgba(56, 189, 248, 0.25)">
+          <div style={{ padding: '20px' }}>
+            <div style={{ fontSize: '11px', color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>TOTAL POOLED INVENTORY</div>
+            <div style={{ fontSize: '1.8rem', fontWeight: 800, color: '#38bdf8', fontFamily: 'var(--font-mono)', margin: '6px 0' }}>
+              {inventory ? (inventory.totalAvailableQuantity + inventory.totalReservedQuantity).toLocaleString() : 'Loading...'}
+            </div>
+            <div style={{ fontSize: '11px', color: '#64748b' }}>PostgreSQL inventory_items aggregate</div>
           </div>
-          <div style={{ fontSize: '11px', color: '#64748b' }}>PostgreSQL inventory_items aggregate</div>
-        </div>
+        </Card3D>
       </div>
 
       {/* Fulfillment Center Breakdown Table */}
