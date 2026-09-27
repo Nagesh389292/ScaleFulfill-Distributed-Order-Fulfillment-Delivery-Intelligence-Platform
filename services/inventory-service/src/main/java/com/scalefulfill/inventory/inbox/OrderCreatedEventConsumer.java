@@ -8,6 +8,7 @@ import com.scalefulfill.inventory.event.EventEnvelope;
 import com.scalefulfill.inventory.event.OrderCreatedPayload;
 import com.scalefulfill.inventory.exception.InsufficientInventoryException;
 import com.scalefulfill.inventory.exception.ResourceNotFoundException;
+import com.scalefulfill.inventory.metrics.InventoryMetrics;
 import com.scalefulfill.inventory.service.InventoryService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -30,8 +31,9 @@ public class OrderCreatedEventConsumer {
     private final ProcessedEventRepository processedEventRepository;
     private final InventoryService inventoryService;
     private final ObjectMapper objectMapper;
+    private final InventoryMetrics inventoryMetrics;
 
-    // Metrics counters for testing and monitoring
+    // AtomicLong counters retained for backward-compatible test assertions
     private final AtomicLong processedCount = new AtomicLong(0);
     private final AtomicLong duplicateCount = new AtomicLong(0);
     private final AtomicLong failedReservationCount = new AtomicLong(0);
@@ -74,11 +76,15 @@ public class OrderCreatedEventConsumer {
         String eventId = envelope.getEventId();
         String eventType = envelope.getEventType();
         OrderCreatedPayload orderData = envelope.getPayload();
+        long startNs = System.nanoTime();
 
         // 1. Idempotency Check: Query processed_events inbox table
         if (processedEventRepository.existsByEventIdAndConsumerGroup(eventId, CONSUMER_GROUP)) {
             duplicateCount.incrementAndGet();
             log.warn("[inventory-consumer] DUPLICATE event detected [{}]. Skipping processing.", eventId);
+            long durationNs = System.nanoTime() - startNs;
+            inventoryMetrics.getReservationDuplicateSkippedCounter().increment();
+            inventoryMetrics.getReservationTimerDuplicateSkipped().record(java.time.Duration.ofNanos(durationNs));
             return false;
         }
 
@@ -113,6 +119,15 @@ public class OrderCreatedEventConsumer {
 
         processedEventRepository.save(processedEvent);
         processedCount.incrementAndGet();
+
+        long durationNs = System.nanoTime() - startNs;
+        if (reservationSuccess) {
+            inventoryMetrics.getReservationSuccessCounter().increment();
+            inventoryMetrics.getReservationTimerReserved().record(java.time.Duration.ofNanos(durationNs));
+        } else {
+            inventoryMetrics.getReservationInsufficientStockCounter().increment();
+            inventoryMetrics.getReservationTimerInsufficient().record(java.time.Duration.ofNanos(durationNs));
+        }
 
         log.info("[inventory-consumer] Successfully recorded event [{}] in inbox. Order [{}], status [{}]",
                 eventId, orderData != null ? orderData.getOrderId() : "UNKNOWN",

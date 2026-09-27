@@ -46,6 +46,17 @@ management:
   endpoint:
     health:
       show-details: always
+    prometheus:
+      enabled: true
+  metrics:
+    tags:
+      application: scalefulfill
+      service: inventory-service
+    distribution:
+      percentiles-histogram:
+        scalefulfill.inventory.reservation.duration: true
+      slo:
+        scalefulfill.inventory.reservation.duration: 1ms,5ms,10ms,25ms,50ms,100ms,250ms,500ms
 
 logging:
   level:

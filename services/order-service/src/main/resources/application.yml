@@ -41,6 +41,17 @@ management:
   endpoint:
     health:
       show-details: always
+    prometheus:
+      enabled: true
+  metrics:
+    tags:
+      application: scalefulfill
+      service: order-service
+    distribution:
+      percentiles-histogram:
+        scalefulfill.order.processing.duration: true
+      slo:
+        scalefulfill.order.processing.duration: 5ms,10ms,25ms,50ms,100ms,200ms,500ms,1s
 
 # Resilience4j Configuration
 resilience4j:

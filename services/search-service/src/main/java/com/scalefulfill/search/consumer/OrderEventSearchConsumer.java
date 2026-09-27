@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JavaType;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.scalefulfill.search.event.EventEnvelope;
 import com.scalefulfill.search.event.OrderCreatedPayload;
+import com.scalefulfill.search.metrics.SearchMetrics;
 import com.scalefulfill.search.model.OrderDocument;
 import com.scalefulfill.search.service.SearchService;
 import lombok.RequiredArgsConstructor;
@@ -28,6 +29,7 @@ public class OrderEventSearchConsumer {
 
     private final SearchService searchService;
     private final ObjectMapper objectMapper;
+    private final SearchMetrics searchMetrics;
 
     private final AtomicLong consumedCount = new AtomicLong(0);
 
@@ -94,18 +96,27 @@ public class OrderEventSearchConsumer {
                     .build();
 
             // Index into OpenSearch
-            searchService.indexOrder(orderDoc);
-            consumedCount.incrementAndGet();
-
-            log.info("[search-consumer] Order [{}] successfully projected into OpenSearch. Measured lag: {} ms",
-                    payload.getOrderId(), lagMs);
+            try {
+                searchService.indexOrder(orderDoc);
+                searchMetrics.getIndexingSuccessCounter().increment();
+                consumedCount.incrementAndGet();
+                log.info("[search-consumer] Order [{}] successfully projected into OpenSearch. Measured lag: {} ms",
+                        payload.getOrderId(), lagMs);
+            } catch (Exception indexEx) {
+                searchMetrics.getIndexingErrorCounter().increment();
+                log.error("[search-consumer] OpenSearch indexing failed for order [{}]: {}",
+                        payload.getOrderId(), indexEx.getMessage());
+                throw new RuntimeException("Search indexing failed, message will be retried: " + indexEx.getMessage(), indexEx);
+            }
 
             if (ack != null) {
                 ack.acknowledge();
             }
+        } catch (RuntimeException re) {
+            // Already logged above — re-throw to prevent offset commit
+            throw re;
         } catch (Exception e) {
             log.error("[search-consumer] Failed to process search projection event: {}", message, e);
-            // Re-throw so that Kafka offset is NOT committed. Will retry upon recovery.
             throw new RuntimeException("Search indexing failed, message will be retried: " + e.getMessage(), e);
         }
     }

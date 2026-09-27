@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.scalefulfill.search.config.OpenSearchProperties;
 import com.scalefulfill.search.dto.*;
+import com.scalefulfill.search.metrics.SearchMetrics;
 import com.scalefulfill.search.model.OrderDocument;
 import com.scalefulfill.search.model.ProductDocument;
 import com.scalefulfill.search.service.SearchService;
@@ -27,6 +28,7 @@ public class SearchServiceImpl implements SearchService {
     private final RestClient openSearchRestClient;
     private final OpenSearchProperties properties;
     private final ObjectMapper objectMapper;
+    private final SearchMetrics searchMetrics;
 
     private final AtomicLong totalOrdersIndexed = new AtomicLong(0);
     private final AtomicLong totalProductsIndexed = new AtomicLong(0);
@@ -78,6 +80,7 @@ public class SearchServiceImpl implements SearchService {
 
     @Override
     public OrderSearchResponse searchOrders(OrderSearchRequest request) {
+        long startNs = System.nanoTime();
         long startTime = System.currentTimeMillis();
         try {
             ObjectNode root = objectMapper.createObjectNode();
@@ -158,6 +161,7 @@ public class SearchServiceImpl implements SearchService {
                     .body(String.class);
 
             long executionTime = System.currentTimeMillis() - startTime;
+            searchMetrics.getSearchQueryTimerOrders().record(java.time.Duration.ofNanos(System.nanoTime() - startNs));
             return parseOrderSearchResponse(responseBody, request.getPage(), request.getSize(), executionTime);
         } catch (Exception e) {
             log.error("Error executing order search: {}", e.getMessage(), e);
@@ -167,6 +171,7 @@ public class SearchServiceImpl implements SearchService {
 
     @Override
     public ProductSearchResponse searchProducts(ProductSearchRequest request) {
+        long startNs = System.nanoTime();
         long startTime = System.currentTimeMillis();
         try {
             ObjectNode root = objectMapper.createObjectNode();
@@ -217,6 +222,7 @@ public class SearchServiceImpl implements SearchService {
                     .body(String.class);
 
             long executionTime = System.currentTimeMillis() - startTime;
+            searchMetrics.getSearchQueryTimerProducts().record(java.time.Duration.ofNanos(System.nanoTime() - startNs));
             return parseProductSearchResponse(responseBody, request.getPage(), request.getSize(), executionTime);
         } catch (Exception e) {
             log.error("Error executing product search: {}", e.getMessage(), e);

@@ -4,8 +4,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.scalefulfill.search.event.EventEnvelope;
 import com.scalefulfill.search.event.OrderCreatedPayload;
+import com.scalefulfill.search.metrics.SearchMetrics;
 import com.scalefulfill.search.model.OrderDocument;
 import com.scalefulfill.search.service.SearchService;
+import io.micrometer.core.instrument.Counter;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -31,6 +33,9 @@ class OrderEventSearchConsumerTest {
     @Mock
     private Acknowledgment acknowledgment;
 
+    @Mock
+    private SearchMetrics searchMetrics;
+
     private ObjectMapper objectMapper;
     private OrderEventSearchConsumer consumer;
 
@@ -38,7 +43,10 @@ class OrderEventSearchConsumerTest {
     void setUp() {
         objectMapper = new ObjectMapper();
         objectMapper.registerModule(new JavaTimeModule());
-        consumer = new OrderEventSearchConsumer(searchService, objectMapper);
+        Counter noopCounter = org.mockito.Mockito.mock(Counter.class, org.mockito.Mockito.withSettings().lenient());
+        org.mockito.Mockito.lenient().when(searchMetrics.getIndexingSuccessCounter()).thenReturn(noopCounter);
+        org.mockito.Mockito.lenient().when(searchMetrics.getIndexingErrorCounter()).thenReturn(noopCounter);
+        consumer = new OrderEventSearchConsumer(searchService, objectMapper, searchMetrics);
     }
 
     @Test

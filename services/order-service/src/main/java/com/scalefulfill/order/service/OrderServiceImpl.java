@@ -16,6 +16,7 @@ import com.scalefulfill.order.exception.DownstreamBusinessException;
 import com.scalefulfill.order.exception.InventoryServiceUnavailableException;
 import com.scalefulfill.order.exception.ResourceNotFoundException;
 import com.scalefulfill.order.repository.OrderRepository;
+import com.scalefulfill.order.metrics.OrderMetrics;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.scalefulfill.order.event.EventEnvelope;
 import com.scalefulfill.order.event.OrderCreatedPayload;
@@ -44,6 +45,7 @@ public class OrderServiceImpl implements OrderService {
     private final OrderStateMachine orderStateMachine;
     private final OutboxEventRepository outboxEventRepository;
     private final ObjectMapper objectMapper;
+    private final OrderMetrics orderMetrics;
 
     @Override
     @Transactional
@@ -136,84 +138,99 @@ public class OrderServiceImpl implements OrderService {
         log.info("[order-service] Atomic Outbox order creation [{}] for customer [{}]",
                 orderId, request.getCustomerId());
 
-        BigDecimal total = BigDecimal.ZERO;
-        List<OrderItem> items = new ArrayList<>();
-
-        Order order = Order.builder()
-                .id(orderId)
-                .customerId(request.getCustomerId())
-                .status(OrderStatus.PENDING)
-                .totalAmount(BigDecimal.ZERO)
-                .createdAt(Instant.now())
-                .updatedAt(Instant.now())
-                .items(items)
-                .build();
-
-        List<OrderCreatedPayload.OrderItemPayload> eventItems = new ArrayList<>();
-
-        for (CreateOrderItemDto itemDto : request.getItems()) {
-            BigDecimal unitPrice = itemDto.getUnitPrice() != null ? itemDto.getUnitPrice() : BigDecimal.valueOf(1499.00);
-            BigDecimal subtotal = unitPrice.multiply(BigDecimal.valueOf(itemDto.getQuantity()));
-            total = total.add(subtotal);
-
-            OrderItem orderItem = OrderItem.builder()
-                    .order(order)
-                    .productId(itemDto.getProductId())
-                    .quantity(itemDto.getQuantity())
-                    .unitPrice(unitPrice)
-                    .build();
-            order.addItem(orderItem);
-
-            eventItems.add(OrderCreatedPayload.OrderItemPayload.builder()
-                    .productId(itemDto.getProductId())
-                    .quantity(itemDto.getQuantity())
-                    .unitPrice(unitPrice)
-                    .build());
-        }
-
-        order.setTotalAmount(total);
-        Order savedOrder = orderRepository.save(order);
-
-        // Build Event Envelope & Payload
-        OrderCreatedPayload eventPayload = OrderCreatedPayload.builder()
-                .orderId(orderId)
-                .customerId(request.getCustomerId())
-                .totalAmount(total)
-                .items(eventItems)
-                .build();
-
-        EventEnvelope<OrderCreatedPayload> envelope = EventEnvelope.<OrderCreatedPayload>builder()
-                .eventId(UUID.randomUUID().toString())
-                .eventType("OrderCreatedEvent")
-                .aggregateType("ORDER")
-                .aggregateId(orderId)
-                .occurredAt(Instant.now())
-                .correlationId(correlationId != null ? correlationId : UUID.randomUUID().toString())
-                .payload(eventPayload)
-                .build();
-
+        long startNs = System.nanoTime();
         try {
-            String payloadJson = objectMapper.writeValueAsString(envelope);
-            OutboxEvent outboxEvent = OutboxEvent.builder()
-                    .id(envelope.getEventId())
+            BigDecimal total = BigDecimal.ZERO;
+            List<OrderItem> items = new ArrayList<>();
+
+            Order order = Order.builder()
+                    .id(orderId)
+                    .customerId(request.getCustomerId())
+                    .status(OrderStatus.PENDING)
+                    .totalAmount(BigDecimal.ZERO)
+                    .createdAt(Instant.now())
+                    .updatedAt(Instant.now())
+                    .items(items)
+                    .build();
+
+            List<OrderCreatedPayload.OrderItemPayload> eventItems = new ArrayList<>();
+
+            for (CreateOrderItemDto itemDto : request.getItems()) {
+                BigDecimal unitPrice = itemDto.getUnitPrice() != null ? itemDto.getUnitPrice() : BigDecimal.valueOf(1499.00);
+                BigDecimal subtotal = unitPrice.multiply(BigDecimal.valueOf(itemDto.getQuantity()));
+                total = total.add(subtotal);
+
+                OrderItem orderItem = OrderItem.builder()
+                        .order(order)
+                        .productId(itemDto.getProductId())
+                        .quantity(itemDto.getQuantity())
+                        .unitPrice(unitPrice)
+                        .build();
+                order.addItem(orderItem);
+
+                eventItems.add(OrderCreatedPayload.OrderItemPayload.builder()
+                        .productId(itemDto.getProductId())
+                        .quantity(itemDto.getQuantity())
+                        .unitPrice(unitPrice)
+                        .build());
+            }
+
+            order.setTotalAmount(total);
+            Order savedOrder = orderRepository.save(order);
+
+            // Build Event Envelope & Payload
+            OrderCreatedPayload eventPayload = OrderCreatedPayload.builder()
+                    .orderId(orderId)
+                    .customerId(request.getCustomerId())
+                    .totalAmount(total)
+                    .items(eventItems)
+                    .build();
+
+            EventEnvelope<OrderCreatedPayload> envelope = EventEnvelope.<OrderCreatedPayload>builder()
+                    .eventId(UUID.randomUUID().toString())
+                    .eventType("OrderCreatedEvent")
                     .aggregateType("ORDER")
                     .aggregateId(orderId)
-                    .eventType(envelope.getEventType())
-                    .payload(payloadJson)
-                    .correlationId(envelope.getCorrelationId())
-                    .status(OutboxStatus.PENDING)
-                    .createdAt(Instant.now())
+                    .occurredAt(Instant.now())
+                    .correlationId(correlationId != null ? correlationId : UUID.randomUUID().toString())
+                    .payload(eventPayload)
                     .build();
 
-            outboxEventRepository.save(outboxEvent);
-            log.info("[order-service] Persisted order [{}] and OutboxEvent [{}] atomically in single DB transaction",
-                    orderId, outboxEvent.getId());
-        } catch (Exception ex) {
-            log.error("[order-service] Failed serializing outbox event payload: {}", ex.getMessage());
-            throw new RuntimeException("Could not serialize outbox event", ex);
-        }
+            try {
+                String payloadJson = objectMapper.writeValueAsString(envelope);
+                OutboxEvent outboxEvent = OutboxEvent.builder()
+                        .id(envelope.getEventId())
+                        .aggregateType("ORDER")
+                        .aggregateId(orderId)
+                        .eventType(envelope.getEventType())
+                        .payload(payloadJson)
+                        .correlationId(envelope.getCorrelationId())
+                        .status(OutboxStatus.PENDING)
+                        .createdAt(Instant.now())
+                        .build();
 
-        return mapToOrderResponse(savedOrder);
+                outboxEventRepository.save(outboxEvent);
+                log.info("[order-service] Persisted order [{}] and OutboxEvent [{}] atomically in single DB transaction",
+                        orderId, outboxEvent.getId());
+            } catch (Exception ex) {
+                log.error("[order-service] Failed serializing outbox event payload: {}", ex.getMessage());
+                throw new RuntimeException("Could not serialize outbox event", ex);
+            }
+
+            // Record success metrics
+            long durationNs = System.nanoTime() - startNs;
+            orderMetrics.getOrderProcessingTimerSuccess().record(java.time.Duration.ofNanos(durationNs));
+            orderMetrics.getOrdersCreatedSuccess().increment();
+
+            return mapToOrderResponse(savedOrder);
+
+        } catch (Exception ex) {
+            long durationNs = System.nanoTime() - startNs;
+            orderMetrics.getOrderProcessingTimerError().record(java.time.Duration.ofNanos(durationNs));
+            orderMetrics.getOrdersCreatedInternalError().increment();
+            log.error("[order-service] Unexpected error during outbox order creation [{}]: {}", orderId, ex.getMessage());
+            throw ex;
+        }
     }
 
     @Override

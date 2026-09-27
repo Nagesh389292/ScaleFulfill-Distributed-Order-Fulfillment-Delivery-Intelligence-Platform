@@ -1,0 +1,194 @@
+{
+  "id": null,
+  "uid": "scalefulfill-main",
+  "title": "ScaleFulfill — Distributed System Observability",
+  "description": "Phase 5 observability dashboard. Shows order throughput, processing latency, inventory Kafka lag, search indexing, and gateway rate limiting. Use with the controlled-failure scenario: stop OpenSearch → observe lag rise → restart → observe recovery.",
+  "tags": ["scalefulfill", "phase5"],
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "15s",
+  "time": { "from": "now-15m", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Orders Created (total)",
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
+      "targets": [{
+        "datasource": "Prometheus",
+        "expr": "sum(scalefulfill_orders_total{status='success'}) or vector(0)",
+        "legendFormat": "Success"
+      }],
+      "options": { "colorMode": "background", "graphMode": "area", "orientation": "auto" },
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [{"color":"green","value":null}] } } }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Order Errors (internal)",
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
+      "targets": [{
+        "datasource": "Prometheus",
+        "expr": "sum(scalefulfill_orders_total{status='internal_error'}) or vector(0)",
+        "legendFormat": "Errors"
+      }],
+      "options": { "colorMode": "background", "graphMode": "area" },
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [{"color":"green","value":null},{"color":"red","value":1}] } } }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Gateway Rate Limited (total)",
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 0 },
+      "targets": [{
+        "datasource": "Prometheus",
+        "expr": "sum(scalefulfill_gateway_rate_limited_total) or vector(0)",
+        "legendFormat": "429s"
+      }],
+      "options": { "colorMode": "background", "graphMode": "area" },
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [{"color":"green","value":null},{"color":"orange","value":1},{"color":"red","value":10}] } } }
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Search Indexing Success (total)",
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 0 },
+      "targets": [{
+        "datasource": "Prometheus",
+        "expr": "sum(scalefulfill_search_indexing_total{result='indexed'}) or vector(0)",
+        "legendFormat": "Indexed"
+      }],
+      "options": { "colorMode": "background", "graphMode": "area" },
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [{"color":"green","value":null}] } } }
+    },
+    {
+      "id": 10,
+      "type": "timeseries",
+      "title": "Order Throughput (req/s)",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
+      "targets": [{
+        "datasource": "Prometheus",
+        "expr": "sum(rate(scalefulfill_orders_total{status='success'}[1m]))",
+        "legendFormat": "Orders/s (success)"
+      },{
+        "datasource": "Prometheus",
+        "expr": "sum(rate(scalefulfill_orders_total{status='internal_error'}[1m]))",
+        "legendFormat": "Orders/s (error)"
+      }],
+      "fieldConfig": { "defaults": { "unit": "reqps", "custom": { "lineWidth": 2 } } }
+    },
+    {
+      "id": 11,
+      "type": "timeseries",
+      "title": "Order Processing Latency (P50 / P95)",
+      "description": "NFR target: P95 ≤ 80 ms",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
+      "targets": [{
+        "datasource": "Prometheus",
+        "expr": "histogram_quantile(0.50, sum(rate(scalefulfill_order_processing_duration_seconds_bucket{status='success'}[5m])) by (le))",
+        "legendFormat": "P50 latency"
+      },{
+        "datasource": "Prometheus",
+        "expr": "histogram_quantile(0.95, sum(rate(scalefulfill_order_processing_duration_seconds_bucket{status='success'}[5m])) by (le))",
+        "legendFormat": "P95 latency"
+      },{
+        "datasource": "Prometheus",
+        "expr": "0.080",
+        "legendFormat": "P95 NFR target (80ms)"
+      }],
+      "fieldConfig": { "defaults": { "unit": "s", "custom": { "lineWidth": 2 } } }
+    },
+    {
+      "id": 20,
+      "type": "timeseries",
+      "title": "Inventory Kafka Consumer Lag — FAILURE SCENARIO SIGNAL",
+      "description": "Stop OpenSearch → search consumer cannot commit → this metric accumulates. Restart OpenSearch → consumer catches up → lag returns to 0.",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 },
+      "targets": [{
+        "datasource": "Prometheus",
+        "expr": "sum(scalefulfill_inventory_kafka_consumer_lag) by (partition)",
+        "legendFormat": "inventory lag p{{partition}}"
+      },{
+        "datasource": "Prometheus",
+        "expr": "sum(scalefulfill_search_kafka_consumer_lag) by (partition)",
+        "legendFormat": "search lag p{{partition}}"
+      }],
+      "fieldConfig": { "defaults": { "unit": "short", "custom": { "lineWidth": 2 }, "color": { "mode": "palette-classic" } } }
+    },
+    {
+      "id": 21,
+      "type": "timeseries",
+      "title": "Search Indexing Rate (docs/s)",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 },
+      "targets": [{
+        "datasource": "Prometheus",
+        "expr": "sum(rate(scalefulfill_search_indexing_total{result='indexed'}[1m]))",
+        "legendFormat": "Indexed docs/s"
+      },{
+        "datasource": "Prometheus",
+        "expr": "sum(rate(scalefulfill_search_indexing_total{result='error'}[1m]))",
+        "legendFormat": "Indexing errors/s"
+      }],
+      "fieldConfig": { "defaults": { "unit": "reqps", "custom": { "lineWidth": 2 } } }
+    },
+    {
+      "id": 30,
+      "type": "timeseries",
+      "title": "Inventory Reservation Rate",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 20 },
+      "targets": [{
+        "datasource": "Prometheus",
+        "expr": "sum(rate(scalefulfill_inventory_reservation_total{result='reserved'}[1m]))",
+        "legendFormat": "Reserved/s"
+      },{
+        "datasource": "Prometheus",
+        "expr": "sum(rate(scalefulfill_inventory_reservation_total{result='insufficient_stock'}[1m]))",
+        "legendFormat": "Insufficient stock/s"
+      }],
+      "fieldConfig": { "defaults": { "unit": "reqps", "custom": { "lineWidth": 2 } } }
+    },
+    {
+      "id": 31,
+      "type": "timeseries",
+      "title": "Search Query Latency P95",
+      "description": "Phase 4 baseline: P50=19ms, P95=30ms",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 20 },
+      "targets": [{
+        "datasource": "Prometheus",
+        "expr": "histogram_quantile(0.95, sum(rate(scalefulfill_search_query_duration_seconds_bucket{query_type='order_search'}[5m])) by (le))",
+        "legendFormat": "Order search P95"
+      },{
+        "datasource": "Prometheus",
+        "expr": "histogram_quantile(0.50, sum(rate(scalefulfill_search_query_duration_seconds_bucket{query_type='order_search'}[5m])) by (le))",
+        "legendFormat": "Order search P50"
+      }],
+      "fieldConfig": { "defaults": { "unit": "s", "custom": { "lineWidth": 2 } } }
+    },
+    {
+      "id": 40,
+      "type": "timeseries",
+      "title": "Gateway Request Rate by Route",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 28 },
+      "targets": [{
+        "datasource": "Prometheus",
+        "expr": "sum(rate(scalefulfill_gateway_requests_total[1m])) by (route, status)",
+        "legendFormat": "{{route}} {{status}}"
+      }],
+      "fieldConfig": { "defaults": { "unit": "reqps", "custom": { "lineWidth": 2 } } }
+    },
+    {
+      "id": 41,
+      "type": "timeseries",
+      "title": "Gateway Rate Limiting Events",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 28 },
+      "targets": [{
+        "datasource": "Prometheus",
+        "expr": "sum(rate(scalefulfill_gateway_rate_limited_total[1m]))",
+        "legendFormat": "Rate limited (429) /s"
+      }],
+      "fieldConfig": { "defaults": { "unit": "reqps", "custom": { "lineWidth": 2 } } }
+    }
+  ]
+}

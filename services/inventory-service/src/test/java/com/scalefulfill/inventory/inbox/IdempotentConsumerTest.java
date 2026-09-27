@@ -6,7 +6,10 @@ import com.scalefulfill.inventory.dto.ReservationRequest;
 import com.scalefulfill.inventory.dto.ReservationResponse;
 import com.scalefulfill.inventory.event.EventEnvelope;
 import com.scalefulfill.inventory.event.OrderCreatedPayload;
+import com.scalefulfill.inventory.metrics.InventoryMetrics;
 import com.scalefulfill.inventory.service.InventoryService;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.Timer;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -37,6 +40,9 @@ class IdempotentConsumerTest {
     @Mock
     private Acknowledgment acknowledgment;
 
+    @Mock
+    private InventoryMetrics inventoryMetrics;
+
     private ObjectMapper objectMapper;
     private OrderCreatedEventConsumer consumer;
 
@@ -47,10 +53,23 @@ class IdempotentConsumerTest {
         objectMapper = new ObjectMapper();
         objectMapper.registerModule(new JavaTimeModule());
 
+        // Stub metrics calls to no-op — avoids NullPointerException when timer/counter methods are called
+        Counter noopCounter = org.mockito.Mockito.mock(Counter.class, org.mockito.Mockito.withSettings().lenient());
+        Timer noopTimer = org.mockito.Mockito.mock(Timer.class, org.mockito.Mockito.withSettings().lenient());
+        org.mockito.Mockito.lenient().when(inventoryMetrics.getReservationSuccessCounter()).thenReturn(noopCounter);
+        org.mockito.Mockito.lenient().when(inventoryMetrics.getReservationInsufficientStockCounter()).thenReturn(noopCounter);
+        org.mockito.Mockito.lenient().when(inventoryMetrics.getReservationDuplicateSkippedCounter()).thenReturn(noopCounter);
+        org.mockito.Mockito.lenient().when(inventoryMetrics.getReservationErrorCounter()).thenReturn(noopCounter);
+        org.mockito.Mockito.lenient().when(inventoryMetrics.getReservationTimerReserved()).thenReturn(noopTimer);
+        org.mockito.Mockito.lenient().when(inventoryMetrics.getReservationTimerInsufficient()).thenReturn(noopTimer);
+        org.mockito.Mockito.lenient().when(inventoryMetrics.getReservationTimerDuplicateSkipped()).thenReturn(noopTimer);
+        org.mockito.Mockito.lenient().when(inventoryMetrics.getReservationTimerError()).thenReturn(noopTimer);
+
         consumer = new OrderCreatedEventConsumer(
                 processedEventRepository,
                 inventoryService,
-                objectMapper
+                objectMapper,
+                inventoryMetrics
         );
 
         OrderCreatedPayload.OrderItemPayload item = OrderCreatedPayload.OrderItemPayload.builder()

@@ -5,9 +5,11 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.scalefulfill.search.config.OpenSearchProperties;
 import com.scalefulfill.search.dto.OrderSearchRequest;
 import com.scalefulfill.search.dto.SearchMetricsResponse;
+import com.scalefulfill.search.metrics.SearchMetrics;
 import com.scalefulfill.search.model.OrderDocument;
 import com.scalefulfill.search.model.ProductDocument;
 import com.scalefulfill.search.service.impl.SearchServiceImpl;
+import io.micrometer.core.instrument.Timer;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -28,6 +30,9 @@ class SearchServiceTest {
     @Mock
     private RestClient restClient;
 
+    @Mock
+    private SearchMetrics searchMetrics;
+
     private OpenSearchProperties properties;
     private ObjectMapper objectMapper;
     private SearchServiceImpl searchService;
@@ -43,7 +48,11 @@ class SearchServiceTest {
         objectMapper = new ObjectMapper();
         objectMapper.registerModule(new JavaTimeModule());
 
-        searchService = new SearchServiceImpl(restClient, properties, objectMapper);
+        Timer noopTimer = org.mockito.Mockito.mock(Timer.class, org.mockito.Mockito.withSettings().lenient());
+        org.mockito.Mockito.lenient().when(searchMetrics.getSearchQueryTimerOrders()).thenReturn(noopTimer);
+        org.mockito.Mockito.lenient().when(searchMetrics.getSearchQueryTimerProducts()).thenReturn(noopTimer);
+
+        searchService = new SearchServiceImpl(restClient, properties, objectMapper, searchMetrics);
     }
 
     @Test

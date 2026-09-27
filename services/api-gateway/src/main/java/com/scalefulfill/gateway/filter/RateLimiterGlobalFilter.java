@@ -1,5 +1,6 @@
 package com.scalefulfill.gateway.filter;
 
+import com.scalefulfill.gateway.metrics.GatewayMetrics;
 import com.scalefulfill.gateway.ratelimit.TokenBucketRateLimiter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -25,6 +26,7 @@ import java.time.Instant;
 public class RateLimiterGlobalFilter implements GlobalFilter, Ordered {
 
     private final TokenBucketRateLimiter rateLimiter;
+    private final GatewayMetrics gatewayMetrics;
 
     @Value("${scalefulfill.rate-limiter.enabled:true}")
     private boolean enabled;
@@ -49,9 +51,30 @@ public class RateLimiterGlobalFilter implements GlobalFilter, Ordered {
 
         return rateLimiter.tryAcquire(resolvedKey).flatMap(allowed -> {
             if (allowed) {
-                return chain.filter(exchange);
+                return chain.filter(exchange).doOnSuccess(v -> {
+                    // Record successful proxied request by route
+                    String path = exchange.getRequest().getURI().getPath();
+                    int statusCode = exchange.getResponse().getStatusCode() != null
+                            ? exchange.getResponse().getStatusCode().value() : 0;
+                    String statusClass = statusCode >= 500 ? "5xx" : (statusCode >= 400 ? "4xx" : "2xx");
+                    if (path.startsWith("/api/v1/orders")) {
+                        incrementRouteCounter(gatewayMetrics.getOrderServiceRequests2xx(),
+                                gatewayMetrics.getOrderServiceRequests4xx(),
+                                gatewayMetrics.getOrderServiceRequests5xx(), statusClass);
+                    } else if (path.startsWith("/api/v1/inventory")) {
+                        incrementRouteCounter(gatewayMetrics.getInventoryServiceRequests2xx(),
+                                gatewayMetrics.getInventoryServiceRequests4xx(),
+                                gatewayMetrics.getInventoryServiceRequests5xx(), statusClass);
+                    } else if (path.startsWith("/api/v1/search")) {
+                        incrementRouteCounter(gatewayMetrics.getSearchServiceRequests2xx(),
+                                gatewayMetrics.getSearchServiceRequests4xx(),
+                                gatewayMetrics.getSearchServiceRequests5xx(), statusClass);
+                    }
+                });
             } else {
                 log.warn("[GATEWAY 429] Rate limit exceeded for client [{}]", resolvedKey);
+                gatewayMetrics.getTotalRateLimited().increment();
+                gatewayMetrics.getOrderServiceRateLimited().increment(); // counted against order route (primary)
                 ServerHttpResponse response = exchange.getResponse();
                 response.setStatusCode(HttpStatus.TOO_MANY_REQUESTS);
                 response.getHeaders().setContentType(MediaType.APPLICATION_JSON);
@@ -76,5 +99,17 @@ public class RateLimiterGlobalFilter implements GlobalFilter, Ordered {
     @Override
     public int getOrder() {
         return Ordered.HIGHEST_PRECEDENCE + 1; // Immediately following correlation ID filter
+    }
+
+    private void incrementRouteCounter(
+            io.micrometer.core.instrument.Counter c2xx,
+            io.micrometer.core.instrument.Counter c4xx,
+            io.micrometer.core.instrument.Counter c5xx,
+            String statusClass) {
+        switch (statusClass) {
+            case "4xx" -> c4xx.increment();
+            case "5xx" -> c5xx.increment();
+            default   -> c2xx.increment();
+        }
     }
 }

@@ -30,6 +30,17 @@ management:
   endpoint:
     health:
       show-details: always
+    prometheus:
+      enabled: true
+  metrics:
+    tags:
+      application: scalefulfill
+      service: search-service
+    distribution:
+      percentiles-histogram:
+        scalefulfill.search.query.duration: true
+      slo:
+        scalefulfill.search.query.duration: 5ms,10ms,20ms,30ms,50ms,100ms,250ms,500ms
 
 logging:
   level:
