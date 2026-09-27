@@ -117,6 +117,11 @@ In modern hyper-scale e-commerce architectures (such as Amazon, Target, Flipkart
 
 ## Architecture Overview
 
+![ScaleFulfill 3D Architecture Diagram](docs/images/scalefulfill_3d_architecture.jpg)
+
+<details>
+<summary><b>📐 View Text Network Topology & Service Port Map</b></summary>
+
 ```text
                                   CLIENT / BROWSER
                                          │
@@ -188,6 +193,8 @@ In modern hyper-scale e-commerce architectures (such as Amazon, Target, Flipkart
  └──────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
+</details>
+
 > **Detailed Architecture & Transaction Boundaries:** See [docs/architecture.md](docs/architecture.md)
 
 ---
@@ -215,6 +222,11 @@ The following 10 empirical metrics demonstrate the architectural trade-offs meas
 
 ScaleFulfill employs a three-tiered testing pyramid that decouples domain correctness, distributed fault tolerance, and browser-facing user journeys:
 
+![ScaleFulfill 3D Testing Pyramid Diagram](docs/images/scalefulfill_3d_testing_pyramid.jpg)
+
+<details>
+<summary><b>📐 View Text Testing Pyramid Hierarchy</b></summary>
+
 ```text
                   ▲
                  / \
@@ -228,6 +240,8 @@ ScaleFulfill employs a three-tiered testing pyramid that decouples domain correc
          /        ★        \ Service Unit & Integration Tests
         /───────────────────\ Spring Boot test slices & MockMvc test harness (48/48 passing)
 ```
+
+</details>
 
 | Layer | Technology | Scope & Invariants Verified | Status |
 |---|---|---|:---:|
