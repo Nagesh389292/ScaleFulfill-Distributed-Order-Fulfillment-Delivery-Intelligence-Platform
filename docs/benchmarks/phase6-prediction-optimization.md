@@ -83,21 +83,39 @@ Tested on 5 regional fulfillment centers across the United States (`FC-NORTH` Ch
 
 ---
 
-## 4. Experiment 2: Distributed Prediction Worker Pool Scaling
+## 4. Experiment 2: Distributed Prediction Worker Pool Scaling (Workload A vs Workload B)
 
-Evaluated concurrent prediction generation under a sustained burst of **1,000 order prediction events** dispatched across varying worker thread allocations ($W \in \{1, 2, 4, 8\}$).
+Evaluated concurrent prediction generation under a sustained burst of **1,000 order prediction events** dispatched across varying worker thread allocations ($W \in \{1, 2, 4, 8\}$) under two computational profiles:
+- **Workload A (Lightweight Kinematic Estimator):** Analytical Haversine distance, carrier velocity interpolation, and dispatch queue arithmetic ($<0.05\text{ms}$ calculation).
+- **Workload B (CPU-Intensive Numerical Simulation):** Feature processing combined with iterative numerical perturbation (4,000 trigonometric/polynomial iterations simulating Monte Carlo route uncertainty, ~1.5–3.0ms per task).
+
+### Workload A: Lightweight Kinematic Estimator (1,000 Events)
 
 | Workers ($W$) | Total Events | Wall-Clock Time | Throughput | P50 Latency | P95 Latency | P99 Latency | Max Queue Depth |
 |:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
-| **1** | 1,000 | 1.68 s | **594.7 evt/s** | 23.1 ms | 41.0 ms | 82.8 ms | 0 |
-| **2** | 1,000 | 2.48 s | **402.5 evt/s** | 32.9 ms | 68.9 ms | 84.1 ms | 0 |
-| **4** | 1,000 | 2.66 s | **375.6 evt/s** | 36.9 ms | 64.0 ms | 77.3 ms | 0 |
-| **8** | 1,000 | 2.70 s | **370.1 evt/s** | 37.2 ms | 64.7 ms | 92.3 ms | 0 |
+| **1** | 1,000 | 2.22 s | **449.5 evt/s** | 27.8 ms | 65.7 ms | 161.5 ms | 0 |
+| **2** | 1,000 | 2.94 s | **340.0 evt/s** | 40.2 ms | 70.5 ms | 92.8 ms | 0 |
+| **4** | 1,000 | 2.71 s | **369.3 evt/s** | 37.7 ms | 63.7 ms | 84.5 ms | 0 |
+| **8** | 1,000 | 3.18 s | **314.4 evt/s** | 38.7 ms | 116.2 ms | 188.7 ms | 0 |
 
-### Engineering Analysis:
-- Sub-millisecond compute tasks ($<1\text{ms}$ calculation) experience negligible queue build-up when backed by pre-cached read models.
-- As worker concurrency increases from 1 to 8 under client saturation, thread switching overhead in small-task workloads plateaus throughput at ~370–400 evt/s, with P95 latency stabilizing at ~64ms.
-- Backpressure defense: Queue capacity bounded at 1,000 items; `scalefulfill_prediction_total{status="rejected"}` remained at 0 under standard load and actively triggers under simulated memory defense.
+### Workload B: CPU-Intensive Numerical Simulation (1,000 Events)
+
+| Workers ($W$) | Total Events | Wall-Clock Time | Throughput | P50 Latency | P95 Latency | P99 Latency | Max Queue Depth |
+|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| **1** | 1,000 | 2.91 s | **344.0 evt/s** | 38.0 ms | 68.3 ms | 100.8 ms | 0 |
+| **2** | 1,000 | 2.60 s | **385.2 evt/s** | 36.9 ms | 57.6 ms | 66.5 ms | 0 |
+| **4** | 1,000 | 2.65 s | **377.9 evt/s** | 38.0 ms | 58.0 ms | 71.5 ms | 0 |
+| **8** | 1,000 | 2.35 s | **425.4 evt/s** | **33.9 ms** | **50.5 ms** | **61.8 ms** | 0 |
+
+### Distributed Systems Concurrency Analysis:
+1. **The Concurrency Paradox in Sub-Millisecond Tasks (Workload A):**
+   - For ultra-fast compute tasks ($<0.05\text{ms}$ calculation) backed by in-memory read models, **1 worker outperforms 8 workers (449.5 evt/s vs 314.4 evt/s)**.
+   - **Root Cause:** When computation time is shorter than the OS context switch and lock acquisition latency of `ArrayBlockingQueue.poll()`, multi-threading hurts performance. Thread synchronization, CPU cache bouncing across cores, and thread scheduling overhead dominate execution time.
+2. **Worker Scaling under CPU-Bound Computations (Workload B):**
+   - When each prediction task involves substantial mathematical work (~2ms per event), the worker pool demonstrates positive scaling: **throughput increases from 344.0 evt/s (1 worker) to 425.4 evt/s (8 workers, +23.7% gain)**.
+   - Crucially, multi-threading dramatically shrinks tail latencies: **P95 drops from 68.3ms to 50.5ms (-26.1%)**, and **P99 drops from 100.8ms to 61.8ms (-38.7%)**.
+3. **Core Engineering Principle:**
+   > *A thread pool is an optimization for workloads where task computation cost significantly exceeds queue handoff and synchronization overhead. For sub-millisecond analytical baselines, lightweight single/dual-worker models minimize coordination costs; for CPU-heavy feature simulation or ML inference, bounded multi-worker pools are essential to drain backlogs and protect latency SLAs.*
 
 ---
 

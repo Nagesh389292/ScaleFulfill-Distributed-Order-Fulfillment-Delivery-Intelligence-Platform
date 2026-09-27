@@ -40,6 +40,7 @@ public class PredictionWorkerPool {
     private final EtaPredictor etaPredictor;
     private final DemandVelocityCalculator demandVelocityCalculator;
     private final PredictionRepository predictionRepository;
+    private final AtomicInteger defaultComputeIntensity = new AtomicInteger(0);
 
     @Value("${scalefulfill.prediction.ttl-minutes:15}")
     private long predictionTtlMinutes = 15;
@@ -129,7 +130,14 @@ public class PredictionWorkerPool {
             Map<String, Object> featureVector = featureCalculator.extractFeatures(
                     customer, chosenFc, event, distanceKm, velocityKmh, weightKg);
 
-            double predictedEta = etaPredictor.predictEtaMinutes(distanceKm, velocityKmh, chosenFc);
+            int intensity = (event.getComputeIntensity() != null && event.getComputeIntensity() > 0)
+                    ? event.getComputeIntensity()
+                    : defaultComputeIntensity.get();
+
+            double predictedEta = (intensity > 0)
+                    ? etaPredictor.simulateHeavyEtaCalculation(distanceKm, velocityKmh, chosenFc, intensity)
+                    : etaPredictor.predictEtaMinutes(distanceKm, velocityKmh, chosenFc);
+
             double demandVelocity = demandVelocityCalculator.calculateVelocityScore(event);
 
             Instant generatedAt = Instant.now();
@@ -153,7 +161,7 @@ public class PredictionWorkerPool {
             metrics.recordSuccess();
             metrics.recordProcessingTime(Duration.between(start, Instant.now()));
 
-            log.info("[worker-pool] Order {} predicted: ETA={}m, DemandScore={}, FC={}, Duration={}ms",
+            log.debug("[worker-pool] Order {} predicted: ETA={}m, DemandScore={}, FC={}, Duration={}ms",
                     event.getOrderId(), predictedEta, demandVelocity, chosenFc.getId(),
                     Duration.between(start, Instant.now()).toMillis());
 
@@ -178,6 +186,15 @@ public class PredictionWorkerPool {
             executor.setMaximumPoolSize(numWorkers);
         }
         metrics.updateThreadPoolGauges(executor);
+    }
+
+    public void setDefaultComputeIntensity(int intensity) {
+        log.info("[worker-pool] Configured default compute intensity iterations: {}", intensity);
+        this.defaultComputeIntensity.set(Math.max(0, intensity));
+    }
+
+    public int getDefaultComputeIntensity() {
+        return this.defaultComputeIntensity.get();
     }
 
     @PreDestroy

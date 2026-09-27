@@ -158,10 +158,13 @@ def run_optimization_benchmark():
 
     return results
 
-def run_worker_scaling_benchmark():
+def run_worker_scaling_benchmark(intensity=0, workload_name="Lightweight (Workload A)"):
     print("\n" + "=" * 70)
-    print("EXPERIMENT 2: Distributed Prediction Worker Pool Scaling (1,000 Events)")
+    print(f"EXPERIMENT 2: Worker Pool Scaling — {workload_name} (1,000 Events)")
     print("=" * 70)
+
+    # Set compute intensity
+    requests.post(f"{PREDICTION_BASE_URL}/api/predictions/intensity?iterations={intensity}")
 
     worker_configs = [1, 2, 4, 8]
     event_count = 1000
@@ -176,10 +179,11 @@ def run_worker_scaling_benchmark():
         events = []
         for i in range(1, event_count + 1):
             events.append({
-                "eventId": f"SCALING-EVT-{workers}-{i}",
-                "orderId": f"ORD-SCALE-{workers}-{i}",
+                "eventId": f"SCALING-EVT-{intensity}-{workers}-{i}",
+                "orderId": f"ORD-SCALE-{intensity}-{workers}-{i}",
                 "customerId": f"CUST-{1001 + (i % 3)}",
                 "totalAmount": round(25.0 + (i % 200) * 1.5, 2),
+                "computeIntensity": intensity,
                 "items": [
                     {
                         "productId": "PROD-101",
@@ -195,12 +199,12 @@ def run_worker_scaling_benchmark():
 
         def submit_event(evt):
             t0 = time.perf_counter()
-            r = requests.post(f"{PREDICTION_BASE_URL}/api/predictions", json=evt, timeout=15)
+            r = requests.post(f"{PREDICTION_BASE_URL}/api/predictions", json=evt, timeout=30)
             t1 = time.perf_counter()
             latencies.append((t1 - t0) * 1000.0)
             return r.status_code
 
-        # Dispatch via concurrent client thread pool simulating distributed Kafka ingress
+        # Dispatch via concurrent client thread pool
         with concurrent.futures.ThreadPoolExecutor(max_workers=16) as pool:
             statuses = list(pool.map(submit_event, events))
 
@@ -218,6 +222,8 @@ def run_worker_scaling_benchmark():
         stats = requests.get(f"{PREDICTION_BASE_URL}/api/predictions/stats").json()
 
         res = {
+            "workload": workload_name,
+            "intensity": intensity,
             "workers": workers,
             "events": event_count,
             "duration_s": round(total_duration, 2),
@@ -240,7 +246,7 @@ def run_stale_and_telemetry_checks():
     print("=" * 70)
 
     # 1. Verify single prediction retrieval and staleness evaluation
-    check_order = "ORD-SCALE-4-1"
+    check_order = "ORD-SCALE-0-4-1"
     resp = requests.get(f"{PREDICTION_BASE_URL}/api/predictions/{check_order}")
     assert resp.status_code == 200, f"Expected 200, got {resp.status_code}"
     p = resp.json()
@@ -272,13 +278,15 @@ def run_stale_and_telemetry_checks():
 
 if __name__ == "__main__":
     opt_results = run_optimization_benchmark()
-    scale_results = run_worker_scaling_benchmark()
+    scale_light = run_worker_scaling_benchmark(intensity=0, workload_name="Lightweight (Workload A)")
+    scale_heavy = run_worker_scaling_benchmark(intensity=4000, workload_name="CPU-Intensive (Workload B)")
     run_stale_and_telemetry_checks()
 
     # Output JSON summary for artifact documentation
     summary = {
         "optimization": opt_results,
-        "scaling": scale_results,
+        "scaling_lightweight": scale_light,
+        "scaling_cpu_intensive": scale_heavy,
         "timestamp": time.time()
     }
     with open("docs/benchmarks/phase6-raw-results.json", "w") as f:

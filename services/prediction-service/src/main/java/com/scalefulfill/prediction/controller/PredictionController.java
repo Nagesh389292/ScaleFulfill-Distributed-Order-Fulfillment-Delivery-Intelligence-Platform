@@ -63,4 +63,13 @@ public class PredictionController {
                 "newWorkerCount", size
         ));
     }
+
+    @PostMapping("/intensity")
+    public ResponseEntity<Map<String, Object>> setComputeIntensity(@RequestParam int iterations) {
+        workerPool.setDefaultComputeIntensity(iterations);
+        return ResponseEntity.ok(Map.of(
+                "message", "Compute intensity configured",
+                "iterations", iterations
+        ));
+    }
 }

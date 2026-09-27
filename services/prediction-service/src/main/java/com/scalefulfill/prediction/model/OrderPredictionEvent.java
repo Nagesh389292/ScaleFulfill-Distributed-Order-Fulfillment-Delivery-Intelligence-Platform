@@ -19,6 +19,7 @@ public class OrderPredictionEvent {
     private String customerId;
     private Instant occurredAt;
     private BigDecimal totalAmount;
+    private Integer computeIntensity; // 0 for lightweight, >0 for CPU-intensive numerical simulation
     private List<PredictionItem> items;
     private List<String> candidateFulfillmentCenters;
 

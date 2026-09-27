@@ -25,4 +25,22 @@ public class EtaPredictor {
         double totalEtaMinutes = transitTimeMinutes + handlingTimeMinutes + queueTimeMinutes;
         return Math.round(totalEtaMinutes * 10.0) / 10.0;
     }
+
+    /**
+     * Compute CPU-intensive numerical simulation (e.g. Monte Carlo transit scenario perturbation).
+     * Used to evaluate worker scaling when computational workload dominates thread scheduling overhead.
+     */
+    public double simulateHeavyEtaCalculation(double distanceKm, double velocityKmh, FulfillmentCenter fc, int iterations) {
+        double baseEta = predictEtaMinutes(distanceKm, velocityKmh, fc);
+        if (iterations <= 0) {
+            return baseEta;
+        }
+        double accum = 0.0;
+        for (int i = 0; i < iterations; i++) {
+            double angle = (i * 0.0174533) % Math.PI;
+            accum += Math.sin(angle) * Math.cos(angle) + Math.sqrt(distanceKm + i);
+        }
+        double perturbation = (accum % 10.0) / 10.0;
+        return Math.round((baseEta + perturbation) * 10.0) / 10.0;
+    }
 }

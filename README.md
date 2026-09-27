@@ -99,19 +99,17 @@ scalefulfill/
 - [x] **Phase 3:** Kafka Event Fabric, Transactional Outbox & Idempotent Consumers ([docs/benchmarks/phase3-event-driven-kafka.md](file:///c:/Users/NAGESH%20REDDY/Desktop/New%20folder/docs/benchmarks/phase3-event-driven-kafka.md))
 - [x] **Phase 4:** OpenSearch Distributed Indexing & Search ([docs/benchmarks/phase4-opensearch-search.md](file:///c:/Users/NAGESH%20REDDY/Desktop/New%20folder/docs/benchmarks/phase4-opensearch-search.md))
 - [x] **Phase 5:** Full Observability Stack (Prometheus + Grafana + Failure Telemetry) ([docs/benchmarks/phase5-observability-verification.md](file:///c:/Users/NAGESH%20REDDY/Desktop/New%20folder/docs/benchmarks/phase5-observability-verification.md))
-- [x] **Phase 6:** Distributed Prediction & Mathematical Optimization Engine (OR-Tools vs Greedy) ([docs/benchmarks/phase6-prediction-optimization.md](file:///c:/Users/NAGESH%20REDDY/Desktop/New%20folder/docs/benchmarks/phase6-prediction-optimization.md))
-- [ ] **Phase 7:** Distributed Relational Sharding & Redis Concurrency
-- [ ] **Phase 8:** Fault Tolerance, Circuit Breakers & DLQ Replay
-- [ ] **Phase 9:** End-to-End Stress & Chaos Engineering Under Failure
-- [ ] **Phase 10:** Operations Copilot & Executive Dashboard
+- [x] **Phase 6:** Distributed Prediction & Mathematical Optimization Engine (OR-Tools vs Greedy, Workload Scaling) ([docs/benchmarks/phase6-prediction-optimization.md](file:///c:/Users/NAGESH%20REDDY/Desktop/New%20folder/docs/benchmarks/phase6-prediction-optimization.md))
+- [ ] **Phase 7:** End-to-End Reliability, Load & Failure Engineering (Chaos Testing, Service Outages, Lag Drainage, DLQ Recovery, and Consistency Validation)
+- [ ] **Phase 8:** Final Production Showcase & Amazon SDE Technical Walkthrough
 
 ---
 
-## Phase 1 vs Phase 2 vs Phase 3 vs Phase 4 Empirical Benchmark Comparison
+## Empirical Benchmark Comparison Across All Architectural Phases
 
 | Metric / Scenario | Phase 1 Monolith | Phase 2 Distributed Synchronous | Phase 3 Event-Driven (Kafka + Outbox) | Phase 4 CQRS Distributed Search (OpenSearch) | Phase 5 Full Observability Stack | Phase 6 Prediction & Mathematical Optimization |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **Architecture Topology** | Single Process (In-Memory Calls) | Client -> API Gateway -> Order Svc -> Inventory Svc | Gateway -> Order Svc -> Outbox -> Kafka -> Idempotent Consumer | Gateway -> Search Svc -> OpenSearch 2.12 (asynchronously fed via Kafka) | 4 Microservices + Prometheus + Grafana | Dedicated `prediction-service` + OR-Tools MILP Solver Engine |
-| **Throughput / Latency** | 512 req/s (P95: 18ms) | 68.86 req/s (P95: 75.3ms) | Ingress <15.0ms (471.4 evt/s outbox burst) | 19.0 ms (P50), 30.0 ms (P95) | 5/5 Targets UP, 9 Custom Metric Families | 370–594 evt/s prediction; 1.0–237ms solver |
-| **Decision / Calculation Mode** | Static relational queries | Synchronous HTTP calls | Asynchronous transactional outbox | Inverted index search & aggregation | Full-system failure detection & metric scrape | Greedy heuristic (<2ms) vs OR-Tools MILP (26–237ms, 3–10% cost savings) |
-| **Resilience & Backpressure** | Database row lock wait | Circuit breaker & Redis rate limiting | Poison-pill quarantine in Kafka DLQ | Zero intake impact during OpenSearch outage | Automated detection of Kafka consumer lag & outage | Bounded worker thread pool (queue: 1000) with TTL stale prediction filtering |
+| **Architecture Topology** | Single Process (In-Memory Calls) | Client -> API Gateway -> Order Svc -> Inventory Svc | Gateway -> Order Svc -> Outbox -> Kafka -> Idempotent Consumer | Gateway -> Search Svc -> OpenSearch 2.12 (asynchronously fed via Kafka) | 4 Microservices + Prometheus + Grafana | Dedicated `prediction-service` + OR-Tools SCIP MILP Solver Engine |
+| **Throughput / Latency** | 512 req/s (P95: 18ms) | 68.86 req/s (P95: 75.3ms) | Ingress <15.0ms (471.4 evt/s outbox burst) | 19.0 ms (P50), 30.0 ms (P95) | 5/5 Targets UP, 9 Custom Metric Families | **Workload A (Lightweight):** 449.5 evt/s (1w) vs 314.4 evt/s (8w)<br>**Workload B (CPU-Heavy):** 344.0 evt/s (1w) → 425.4 evt/s (8w), P95: 68.3ms → 50.5ms |
+| **Decision / Calculation Mode** | Static relational queries | Synchronous HTTP calls | Asynchronous transactional outbox | Inverted index search & aggregation | Full-system failure detection & metric scrape | **Greedy (<2ms):** Fast for real-time checkout<br>**MILP (26–332ms):** 3–10% cost savings ($340–$770/wave) for scheduled wave dispatch |
+| **Resilience & Backpressure** | Database row lock wait | Circuit breaker & Redis rate limiting | Poison-pill quarantine in Kafka DLQ | Zero intake impact during OpenSearch outage | Automated detection of Kafka consumer lag & outage | Bounded worker thread pool (queue: 1,000) with TTL stale prediction filtering |
