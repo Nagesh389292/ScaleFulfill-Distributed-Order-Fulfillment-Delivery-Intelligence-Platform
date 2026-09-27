@@ -81,7 +81,6 @@ export interface OptimizationResult {
   status: string;
   batchSize: number;
   allocatedCount: number;
-  unallocatedCount: number;
   assignments: {
     orderId: string;
     assignedFcId: string;
@@ -97,6 +96,39 @@ export interface PredictionStats {
   queueDepth: number;
   queueRemaining: number;
   staleAccessCount: number;
+}
+
+export interface SearchMetrics {
+  totalOrdersIndexed: number;
+  totalProductsIndexed: number;
+  avgIndexingLagMs: number;
+  lastMeasuredLagMs: number;
+  clusterStatus: string;
+  lastIndexedAt?: string;
+  ordersIndexName: string;
+}
+
+// Fetch live recent orders directly from OpenSearch
+export async function fetchRecentOrders(size = 10): Promise<SearchOrderDoc[]> {
+  try {
+    const res = await fetch(`/api/v1/search/orders?size=${size}&sortBy=created_at&sortOrder=desc`);
+    if (!res.ok) return [];
+    const data = await res.json();
+    return data.results || data.orders || [];
+  } catch {
+    return [];
+  }
+}
+
+// Fetch live search cluster metrics
+export async function getSearchMetrics(): Promise<SearchMetrics | null> {
+  try {
+    const res = await fetch('/api/v1/search/metrics');
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
 }
 
 // 1. Create Order via Gateway
@@ -253,3 +285,33 @@ export async function runOptimization(solverType: 'GREEDY' | 'MILP', orderCount 
     return null;
   }
 }
+
+// 6. Fetch Real Inventory Levels from PostgreSQL inventory_db
+export interface InventoryCenterDetail {
+  fulfillmentCenterId: string;
+  fulfillmentCenterCode: string;
+  fulfillmentCenterName: string;
+  availableQuantity: number;
+  reservedQuantity: number;
+}
+
+export interface InventoryResponse {
+  productId: string;
+  productName: string;
+  totalAvailableQuantity: number;
+  totalReservedQuantity: number;
+  centerDetails: InventoryCenterDetail[];
+}
+
+export async function getInventory(productId: string): Promise<InventoryResponse | null> {
+  try {
+    const res = await fetch(`/api/v1/inventory/${encodeURIComponent(productId)}`);
+    if (res.ok) {
+      return await res.json();
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+

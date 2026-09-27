@@ -2,33 +2,44 @@ import React, { useState, useEffect } from 'react';
 import {
   Layers,
   LayoutDashboard,
+  ShoppingCart,
   Search,
   Warehouse,
+  GitBranch,
   Cpu,
+  Box,
   ShieldCheck,
 } from 'lucide-react';
 import { Header } from './components/Header';
-import { OrderForm } from './components/OrderForm';
-import { SearchPanel } from './components/SearchPanel';
-import { OrderFeed } from './components/OrderFeed';
-import { PredictionCard } from './components/PredictionCard';
-import { OptimizerPanel } from './components/OptimizerPanel';
-import { OrdersExplorerView } from './views/OrdersExplorerView';
-import { FulfillmentNetworkView } from './views/FulfillmentNetworkView';
-import { ResilienceChaosView } from './views/ResilienceChaosView';
+import { OverviewView } from './views/OverviewView';
+import { OrdersView } from './views/OrdersView';
+import { SearchView } from './views/SearchView';
+import { InventoryView } from './views/InventoryView';
+import { PipelineView } from './views/PipelineView';
+import { PredictionView } from './views/PredictionView';
+import { OptimizationView } from './views/OptimizationView';
+import { AuditView } from './views/AuditView';
 import { getPredictionStats } from './api/client';
 import type { CreateOrderResponse, PredictionStats } from './api/client';
 
-export type NavigationPage = 'OPERATIONS' | 'ORDERS_EXPLORER' | 'FULFILLMENT_NETWORK' | 'OPTIMIZATION' | 'RESILIENCE';
+export type NavigationTab =
+  | 'OVERVIEW'
+  | 'ORDERS'
+  | 'SEARCH'
+  | 'INVENTORY'
+  | 'PIPELINE'
+  | 'PREDICTION'
+  | 'OPTIMIZATION'
+  | 'AUDIT';
 
 export const App: React.FC = () => {
-  const [activePage, setActivePage] = useState<NavigationPage>('OPERATIONS');
+  const [activeTab, setActiveTab] = useState<NavigationTab>('OVERVIEW');
   const [recentOrders, setRecentOrders] = useState<CreateOrderResponse[]>([]);
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>('ORD-308B9CA5');
   const [stats, setStats] = useState<PredictionStats | null>(null);
 
   useEffect(() => {
-    // Poll stats on load
+    // Poll stats periodically
     getPredictionStats().then(setStats);
     const interval = setInterval(() => {
       getPredictionStats().then(setStats);
@@ -47,150 +58,167 @@ export const App: React.FC = () => {
 
   return (
     <div className="app-layout">
-      {/* Enterprise Sidebar Navigation */}
+      {/* Utilitarian Engineering Sidebar */}
       <aside className="sidebar">
         <div>
-          {/* Brand Logo & Version */}
-          <div className="sidebar-header">
-            <div className="sidebar-logo">
-              <Layers size={22} color="#ffffff" />
+          {/* Brand Header */}
+          <div className="sidebar-brand">
+            <div className="brand-title">
+              <Layers size={18} color="#38bdf8" />
+              <span>ScaleFulfill</span>
             </div>
-            <div>
-              <div className="sidebar-title" style={{ fontWeight: 800, fontSize: '1.15rem', letterSpacing: '-0.02em' }}>
-                <span className="gradient-title">ScaleFulfill</span>
-              </div>
-              <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#10b981' }} className="pulse-indicator"></span>
-                <span>Enterprise v1.7.0 LTS</span>
-              </div>
-            </div>
+            <div className="brand-sub">DISTRIBUTED CONTROL PLANE</div>
           </div>
 
           {/* Navigation Links */}
           <nav className="sidebar-nav">
             <button
+              id="nav-overview"
               type="button"
-              className={`nav-link ${activePage === 'OPERATIONS' ? 'active' : ''}`}
-              onClick={() => setActivePage('OPERATIONS')}
+              className={`nav-item ${activeTab === 'OVERVIEW' ? 'active' : ''}`}
+              onClick={() => setActiveTab('OVERVIEW')}
             >
-              <LayoutDashboard size={18} />
-              <span className="nav-text">Operations & Ingress</span>
+              <LayoutDashboard size={15} />
+              <span>Overview</span>
             </button>
 
             <button
+              id="nav-orders"
               type="button"
-              className={`nav-link ${activePage === 'ORDERS_EXPLORER' ? 'active' : ''}`}
-              onClick={() => setActivePage('ORDERS_EXPLORER')}
+              className={`nav-item ${activeTab === 'ORDERS' ? 'active' : ''}`}
+              onClick={() => setActiveTab('ORDERS')}
             >
-              <Search size={18} />
-              <span className="nav-text">CQRS Order Explorer</span>
+              <ShoppingCart size={15} />
+              <span>Orders</span>
             </button>
 
             <button
+              id="nav-search"
               type="button"
-              className={`nav-link ${activePage === 'FULFILLMENT_NETWORK' ? 'active' : ''}`}
-              onClick={() => setActivePage('FULFILLMENT_NETWORK')}
+              className={`nav-item ${activeTab === 'SEARCH' ? 'active' : ''}`}
+              onClick={() => setActiveTab('SEARCH')}
             >
-              <Warehouse size={18} />
-              <span className="nav-text">Multi-FC Network</span>
+              <Search size={15} />
+              <span>Search</span>
             </button>
 
             <button
+              id="nav-inventory"
               type="button"
-              className={`nav-link ${activePage === 'OPTIMIZATION' ? 'active' : ''}`}
-              onClick={() => setActivePage('OPTIMIZATION')}
+              className={`nav-item ${activeTab === 'INVENTORY' ? 'active' : ''}`}
+              onClick={() => setActiveTab('INVENTORY')}
             >
-              <Cpu size={18} />
-              <span className="nav-text">Wave Optimization</span>
+              <Warehouse size={15} />
+              <span>Inventory</span>
             </button>
 
             <button
+              id="nav-pipeline"
               type="button"
-              className={`nav-link ${activePage === 'RESILIENCE' ? 'active' : ''}`}
-              onClick={() => setActivePage('RESILIENCE')}
+              className={`nav-item ${activeTab === 'PIPELINE' ? 'active' : ''}`}
+              onClick={() => setActiveTab('PIPELINE')}
             >
-              <ShieldCheck size={18} />
-              <span className="nav-text">Resilience & Invariants</span>
+              <GitBranch size={15} />
+              <span>Event Pipeline</span>
+            </button>
+
+            <button
+              id="nav-prediction"
+              type="button"
+              className={`nav-item ${activeTab === 'PREDICTION' ? 'active' : ''}`}
+              onClick={() => setActiveTab('PREDICTION')}
+            >
+              <Cpu size={15} />
+              <span>Prediction</span>
+            </button>
+
+            <button
+              id="nav-optimization"
+              type="button"
+              className={`nav-item ${activeTab === 'OPTIMIZATION' ? 'active' : ''}`}
+              onClick={() => setActiveTab('OPTIMIZATION')}
+            >
+              <Box size={15} />
+              <span>Optimization</span>
+            </button>
+
+            <button
+              id="nav-audit"
+              type="button"
+              className={`nav-item ${activeTab === 'AUDIT' ? 'active' : ''}`}
+              onClick={() => setActiveTab('AUDIT')}
+            >
+              <ShieldCheck size={15} />
+              <span>Reliability & Audit</span>
             </button>
           </nav>
         </div>
 
-        {/* Bottom User Profile */}
-        <div className="user-profile-badge">
-          <div className="avatar">
-            NR
-            <span className="avatar-online" />
-          </div>
-          <div className="user-info" style={{ overflow: 'hidden' }}>
-            <div style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-primary)', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>
-              Nagesh Reddy
-            </div>
-            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-              Staff Systems Engineer
-            </div>
-          </div>
+        {/* System Node Telemetry */}
+        <div className="sidebar-footer">
+          <div>NODE: LOCALHOST (TEST CLUSTER)</div>
+          <div style={{ color: '#34d399', marginTop: '3px' }}>● 6 SERVICES ONLINE</div>
         </div>
       </aside>
 
       {/* Main Content Area */}
       <div className="main-wrapper">
-        <div className="content-container">
+        <div className="page-content">
           <Header stats={stats} />
 
-          {/* PAGE 1: Operations & Ingress Control Desk */}
-          {activePage === 'OPERATIONS' && (
-            <div>
-              {/* Row 1: Ingress Form & CQRS Read Path */}
-              <div className="grid-2col" style={{ marginBottom: '24px' }}>
-                <OrderForm onOrderCreated={handleOrderCreated} />
-                <SearchPanel onSelectOrder={handleSelectOrder} />
-              </div>
-
-              {/* Row 2: Live Pipeline Feed & Delivery ETA Intelligence */}
-              <div className="grid-2col" style={{ marginBottom: '24px' }}>
-                <OrderFeed orders={recentOrders} onSelectOrder={handleSelectOrder} />
-                <PredictionCard selectedOrderId={selectedOrderId} />
-              </div>
-
-              {/* Row 3: Mathematical Wave Optimization Engine */}
-              <OptimizerPanel />
-            </div>
+          {/* PAGE 1: Overview Dashboard */}
+          {activeTab === 'OVERVIEW' && (
+            <OverviewView
+              onOrderCreated={handleOrderCreated}
+              onSelectOrder={handleSelectOrder}
+              selectedOrderId={selectedOrderId}
+              recentOrders={recentOrders}
+              onNavigate={(tab) => setActiveTab(tab)}
+            />
           )}
 
-          {/* PAGE 2: CQRS Search & Order Explorer */}
-          {activePage === 'ORDERS_EXPLORER' && (
-            <OrdersExplorerView
+          {/* PAGE 2: Orders Ingestion & Outbox */}
+          {activeTab === 'ORDERS' && (
+            <OrdersView
+              onOrderCreated={handleOrderCreated}
+              onSelectOrder={handleSelectOrder}
+              recentOrders={recentOrders}
+            />
+          )}
+
+          {/* PAGE 3: CQRS OpenSearch Querying */}
+          {activeTab === 'SEARCH' && (
+            <SearchView
               onSelectOrderForEta={(id) => {
                 setSelectedOrderId(id);
-                setActivePage('OPERATIONS');
+                setActiveTab('PREDICTION');
               }}
             />
           )}
 
-          {/* PAGE 3: Multi-FC Network & Inventory Topology */}
-          {activePage === 'FULFILLMENT_NETWORK' && (
-            <FulfillmentNetworkView />
+          {/* PAGE 4: Multi-FC Inventory Ledger */}
+          {activeTab === 'INVENTORY' && (
+            <InventoryView />
           )}
 
-          {/* PAGE 4: Wave Optimization & Solver Parameters */}
-          {activePage === 'OPTIMIZATION' && (
-            <div>
-              <div style={{ marginBottom: '24px' }}>
-                <h2 style={{ fontSize: '1.5rem', marginBottom: '4px' }}>Mathematical Fulfillment Wave Optimization</h2>
-                <p style={{ color: 'var(--text-secondary)', fontSize: '0.88rem' }}>
-                  Empirical trade-off evaluation: Sub-2ms Greedy Checkout Heuristic vs 26–332ms Google OR-Tools SCIP MILP Wave Allocation.
-                </p>
-              </div>
-              <OptimizerPanel />
-              <div style={{ marginTop: '24px' }}>
-                <PredictionCard selectedOrderId={selectedOrderId} />
-              </div>
-            </div>
+          {/* PAGE 5: Event Pipeline & Kafka Backbone */}
+          {activeTab === 'PIPELINE' && (
+            <PipelineView />
           )}
 
-          {/* PAGE 5: Distributed Systems Resilience & Chaos */}
-          {activePage === 'RESILIENCE' && (
-            <ResilienceChaosView />
+          {/* PAGE 6: Kinematic ETA & Prediction Engine */}
+          {activeTab === 'PREDICTION' && (
+            <PredictionView selectedOrderId={selectedOrderId} />
+          )}
+
+          {/* PAGE 7: Mathematical Wave Optimization */}
+          {activeTab === 'OPTIMIZATION' && (
+            <OptimizationView />
+          )}
+
+          {/* PAGE 8: Reliability & Cross-Datastore Audit */}
+          {activeTab === 'AUDIT' && (
+            <AuditView />
           )}
         </div>
       </div>

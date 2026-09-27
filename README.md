@@ -10,6 +10,10 @@
 
 A production-grade, event-driven distributed e-commerce fulfillment platform engineered to handle high-concurrency order ingestion, partitioned relational storage, dynamic multi-center inventory allocation, mathematical fulfillment optimization, distributed ETA predictions, and comprehensive fault tolerance.
 
+> [!NOTE]
+> **Workload Origin & Data Note**
+> ScaleFulfill does not use Amazon's proprietary data. The platform uses generated test workloads to exercise concurrency, event processing, search, prediction, optimization, and failure-recovery behaviour. Performance figures in this repository are measurements from those controlled workloads and should not be interpreted as production benchmarks.
+
 ---
 
 ## Architecture Overview

@@ -12,32 +12,32 @@ export const Header: React.FC<HeaderProps> = ({ stats }) => {
   const [showAuditModal, setShowAuditModal] = useState(false);
 
   return (
-    <header className="glass-panel" style={{ marginBottom: '24px', padding: '18px 24px', position: 'relative' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
+    <header className="eng-card" style={{ marginBottom: '20px', padding: '14px 20px', position: 'relative' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '14px' }}>
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '4px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '2px' }}>
             <div style={{
-              width: '36px',
-              height: '36px',
-              borderRadius: '8px',
-              background: 'linear-gradient(135deg, #0284c7 0%, #6366f1 100%)',
+              width: '28px',
+              height: '28px',
+              borderRadius: '6px',
+              background: '#1e293b',
+              border: '1px solid #3b82f6',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              boxShadow: '0 0 16px rgba(99, 102, 241, 0.4)'
             }}>
-              <Layers size={20} color="#ffffff" />
+              <Layers size={16} color="#38bdf8" />
             </div>
-            <h1 style={{ fontSize: '1.5rem', margin: 0 }}>
-              <span className="gradient-title">ScaleFulfill</span> Control Plane
+            <h1 style={{ fontSize: '1.25rem', fontWeight: 700, margin: 0, color: '#f8fafc', letterSpacing: '-0.01em' }}>
+              ScaleFulfill <span style={{ fontWeight: 400, color: 'var(--text-dim)', fontSize: '0.9rem' }}>| Control Plane</span>
             </h1>
             <span className="badge badge-emerald" id="system-status-badge">
-              <ShieldCheck size={14} />
+              <ShieldCheck size={12} />
               Frozen Baseline v1.7.0
             </span>
           </div>
-          <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', margin: 0 }}>
-            Event-Driven Order Fulfillment, CQRS Search Projections & Mathematical Wave Optimization
+          <p style={{ color: 'var(--text-muted)', fontSize: '12px', margin: 0 }}>
+            Distributed Order Ingress, Outbox Event Pipeline, CQRS OpenSearch Projections & SCIP Wave Solver
           </p>
         </div>
 
