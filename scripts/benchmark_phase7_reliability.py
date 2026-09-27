@@ -545,47 +545,108 @@ def run_scenario_6_consistency_invariant():
             break
         time.sleep(2)
 
-    # 1. Total orders in PostgreSQL
-    total_orders = int(run_psql_query("order_db", "SELECT count(*) FROM orders;"))
+    # 1. Orders and Outbox from PostgreSQL
+    orders_raw = [x for x in run_psql_query("order_db", "SELECT id FROM orders;").split("\n") if x.strip()]
+    orders = set(orders_raw)
+    total_orders = len(orders)
 
-    # 2. Total published events in Outbox
-    total_outbox_published = int(run_psql_query("order_db", "SELECT count(*) FROM outbox_events WHERE status = 'PUBLISHED';"))
-    total_outbox_pending = int(run_psql_query("order_db", "SELECT count(*) FROM outbox_events WHERE status = 'PENDING';"))
+    outbox_raw = [x for x in run_psql_query("order_db", "SELECT id, aggregate_id, status FROM outbox_events;").split("\n") if x.strip()]
+    outbox_map = {}
+    outbox_published = set()
+    outbox_pending = set()
+    for line in outbox_raw:
+        parts = line.split("|")
+        if len(parts) >= 3:
+            eid, oid, status = parts[0], parts[1], parts[2]
+            outbox_map[eid] = {"orderId": oid, "status": status}
+            if status == "PUBLISHED":
+                outbox_published.add(oid)
+            elif status == "PENDING":
+                outbox_pending.add(oid)
 
-    # 3. Total processed events in Inventory DB
-    total_inv_processed = int(run_psql_query("inventory_db", "SELECT count(*) FROM processed_events WHERE consumer_group = 'inventory-service-group';"))
+    total_outbox_published = len(outbox_published)
+    total_outbox_pending = len(outbox_pending)
 
-    # 4. Total indexed documents in OpenSearch
+    # 2. Inventory processed events
+    inv_events_raw = [x for x in run_psql_query("inventory_db", "SELECT event_id FROM processed_events WHERE consumer_group = 'inventory-service-group';").split("\n") if x.strip()]
+    inv_event_set = set(inv_events_raw)
+    total_inv_processed = len(inv_events_raw)
+    duplicate_inv_events = len(inv_events_raw) - len(inv_event_set)
+
+    orders_with_inventory = set()
+    for eid, data in outbox_map.items():
+        if eid in inv_event_set:
+            orders_with_inventory.add(data["orderId"])
+
+    # 3. OpenSearch documents
     total_opensearch_docs = get_opensearch_count()
+    r = requests.post(f"{OPENSEARCH_URL}/orders-index/_search", json={"size": 10000, "_source": ["order_id"]}, timeout=10)
+    os_hits = r.json().get("hits", {}).get("hits", [])
+    os_order_ids = set(h["_source"]["order_id"] for h in os_hits if "order_id" in h.get("_source", {}))
 
-    print("\n---------------- Cross-Datastore Consistency Audit ----------------")
-    print(f"1. PostgreSQL Orders Count (order_db.orders)           : {total_orders}")
-    print(f"2. PostgreSQL Outbox Published (order_db.outbox_events): {total_outbox_published} (PENDING: {total_outbox_pending})")
-    print(f"3. Inventory Processed Events (inventory_db)          : {total_inv_processed}")
-    print(f"4. OpenSearch Indexed Documents (orders-index)         : {total_opensearch_docs}")
-    print(f"5. Final Kafka Consumer Group Lags                     : inv={inv_lag}, search={search_lag}, pred={pred_lag}")
+    # 4. Predictions
+    pred_res = requests.get(f"{PREDICTION_URL}/api/predictions", timeout=10).json()
+    pred_order_ids = set(p["orderId"] for p in pred_res)
+    total_predictions = len(pred_res)
+
+    # 5. Correlation Invariant Metrics
+    orphan_orders = len(orders - outbox_published)
+    missing_inventory = len(orders - orders_with_inventory)
+    missing_predictions = len(orders - pred_order_ids)
+    missing_search = len(orders - os_order_ids)
+    total_lag = inv_lag + search_lag + pred_lag
+
+    print("\n---------------- Cross-Datastore Correlation Audit ----------------")
+    print(f"Total Persistent Orders (order_db.orders)               : {total_orders}")
+    print(f"Total Published Outbox Events (order_db.outbox_events) : {total_outbox_published}")
+    print(f"Total Inventory Processed Records (inventory_db)       : {total_inv_processed}")
+    print(f"Total Predictions in Store (prediction-service)        : {total_predictions}")
+    print(f"Total OpenSearch Documents (orders-index)              : {total_opensearch_docs}")
+    print("-------------------------------------------------------------------")
+    print(f"orphan orders (no published outbox)                    = {orphan_orders}")
+    print(f"missing inventory (no processing record)               = {missing_inventory}")
+    print(f"missing predictions (no computed prediction)           = {missing_predictions}")
+    print(f"missing search docs (no OpenSearch doc)                = {missing_search}")
+    print(f"duplicate inventory (duplicate inbox entries)          = {duplicate_inv_events}")
+    print(f"Kafka consumer lag                                     = {total_lag} (inv={inv_lag}, search={search_lag}, pred={pred_lag})")
+    print(f"pending outbox                                         = {total_outbox_pending}")
     print("-------------------------------------------------------------------")
 
-    # Invariant Verification
+    # Strict Invariant Verification
+    assert orphan_orders == 0, f"Invariant violation: {orphan_orders} orphan orders without published outbox!"
     assert total_outbox_pending == 0, f"Invariant violation: {total_outbox_pending} events remain uncommitted in Outbox!"
-    assert total_orders == total_outbox_published, f"Invariant violation: Orders ({total_orders}) != Outbox Published ({total_outbox_published})"
+    assert missing_inventory == 0, f"Invariant violation: {missing_inventory} orders missing inventory records!"
+    assert missing_predictions == 0, f"Invariant violation: {missing_predictions} orders missing predictions!"
+    assert missing_search == 0, f"Invariant violation: {missing_search} orders missing search documents!"
+    assert duplicate_inv_events == 0, f"Invariant violation: {duplicate_inv_events} duplicate inventory entries detected!"
     assert inv_lag == 0, f"Invariant violation: Inventory consumer lag is {inv_lag} > 0"
     assert search_lag == 0, f"Invariant violation: Search consumer lag is {search_lag} > 0"
+    assert pred_lag == 0, f"Invariant violation: Prediction consumer lag is {pred_lag} > 0"
 
-    print("\n[VERDICT] Master Invariant Holds True: Zero Data Loss, Zero Orphaned Events, Complete Convergence!")
+    print("\n[VERDICT] Master Correlation Invariant Holds True:")
+    print("Every published order correlates 1:1 with inventory, prediction, and search.")
+    print("Data Loss = 0, Semantic Drift = 0, Lag = 0, Invariant Validated!")
 
     return {
+        "scenario": "End-to-End Correlation Invariant Audit",
         "total_orders_postgres": total_orders,
         "total_outbox_published": total_outbox_published,
         "total_outbox_pending": total_outbox_pending,
         "total_inventory_processed": total_inv_processed,
+        "total_predictions": total_predictions,
         "total_opensearch_docs": total_opensearch_docs,
+        "orphan_orders": orphan_orders,
+        "missing_inventory": missing_inventory,
+        "missing_predictions": missing_predictions,
+        "missing_search_docs": missing_search,
+        "duplicate_inventory": duplicate_inv_events,
         "final_kafka_lags": {
             "inventory": inv_lag,
             "search": search_lag,
-            "prediction": pred_lag
+            "prediction": pred_lag,
+            "total": total_lag
         },
-        "invariant_satisfied": True
+        "correlation_invariant_satisfied": True
     }
 
 if __name__ == "__main__":

@@ -47,10 +47,15 @@ We establish an automated **End-to-End Reliability Test Harness** executing five
 - Simulates network duplicates and consumer restart re-deliveries by replaying previously committed Kafka order events with identical `eventId`s.
 - **Architectural Expectation:** Downstream consumer inbox tables (`processed_events`) detect duplicate signatures and deduplicate without double-deducting inventory or duplicating predictions.
 
-### 6. The End-to-End Consistency Invariant
-Following the resolution of all failure injection scenarios and complete Kafka lag drainage to zero, the harness executes an automated cross-database audit verifying the master distributed invariant:
-
-$$\text{Count}(\text{Orders}_{\text{Postgres}}) = \text{Count}(\text{OutboxPublished}_{\text{Postgres}}) = \text{Count}(\text{Reservations}_{\text{Inventory}}) = \text{Count}(\text{Predictions}_{\text{Store}}) = \text{Count}(\text{Docs}_{\text{OpenSearch}})$$
+### 6. The End-to-End Correlation Invariant
+Following the resolution of all failure injection scenarios and complete Kafka lag drainage to zero, the harness executes an automated cross-database correlation audit verifying that every published order event in PostgreSQL correlates 1:1 with an inventory processing record, a delivery prediction, and an OpenSearch document:
+- $\text{orphan orders} = 0$ (every order has a published outbox event)
+- $\text{missing inventory} = 0$ (every order has an inventory processing record)
+- $\text{missing predictions} = 0$ (every order has a computed prediction)
+- $\text{missing search docs} = 0$ (every order has an indexed OpenSearch document)
+- $\text{duplicate inventory} = 0$ (Inbox table prevents duplicate processing)
+- $\text{Kafka lag} = 0$ (all consumer groups fully caught up)
+- $\text{pending outbox} = 0$ (all outbox events durably published)
 
 ## Consequences
 

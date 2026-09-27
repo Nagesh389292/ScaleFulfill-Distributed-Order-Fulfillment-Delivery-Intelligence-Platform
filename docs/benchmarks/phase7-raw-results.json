@@ -120,16 +120,24 @@
     "duplicate_reservations": 0
   },
   "scenario_6_consistency_invariant": {
+    "scenario": "End-to-End Correlation Invariant Audit",
     "total_orders_postgres": 2332,
     "total_outbox_published": 2332,
     "total_outbox_pending": 0,
     "total_inventory_processed": 4341,
-    "total_opensearch_docs": 4329,
+    "total_predictions": 10332,
+    "total_opensearch_docs": 4338,
+    "orphan_orders": 0,
+    "missing_inventory": 0,
+    "missing_predictions": 0,
+    "missing_search_docs": 0,
+    "duplicate_inventory": 0,
     "final_kafka_lags": {
       "inventory": 0,
       "search": 0,
-      "prediction": 0
+      "prediction": 0,
+      "total": 0
     },
-    "invariant_satisfied": true
+    "correlation_invariant_satisfied": true
   }
 }

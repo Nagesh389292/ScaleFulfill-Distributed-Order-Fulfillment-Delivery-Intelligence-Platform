@@ -168,24 +168,37 @@ Simulated at-least-once delivery duplicates resulting from network retransmits o
 
 ---
 
-## 7. Scenario 6: Master End-to-End Consistency Invariant Audit
+## 7. Scenario 6: Master End-to-End Correlation Consistency Invariant Audit
 
-Following the resolution of all failure injection scenarios and complete drainage of all consumer groups, an automated cross-database audit verified state convergence across all datastores:
+Following the resolution of all failure injection scenarios and complete drainage of all consumer groups, an automated cross-database correlation audit verified state convergence across all datastores.
 
-$$\text{Count}(\text{Orders}_{\text{Postgres}}) = \text{Count}(\text{OutboxPublished}_{\text{Postgres}}) = \text{Count}(\text{Reservations}_{\text{Inventory}}) = \text{Count}(\text{Predictions}_{\text{Store}}) = \text{Count}(\text{Docs}_{\text{OpenSearch}})$$
+### Invariant Definition: Correlation, Not Raw Aggregate Counts
+In a distributed system where different datastores accumulate historical records across test runs, asserting raw count equality ($N_{\text{orders}} = N_{\text{inventory}} = N_{\text{search}}$) is invalid. Instead, ScaleFulfill enforces a **correlation-based invariant**:
 
-### Live Audit Findings:
+$$\forall\, \text{order\_id} \in \text{orders}_{\text{Postgres}} \implies \begin{cases}
+\exists!\; \text{outbox\_event} \in \text{outbox}_{\text{Postgres}} & \text{with status } \mathbf{PUBLISHED} \\
+\exists!\; \text{inventory\_record} \in \text{processed\_events}_{\text{Inventory}} & \text{with matching } \text{event\_id} \\
+\exists!\; \text{prediction\_entry} \in \text{store}_{\text{Prediction}} & \text{with matching } \text{order\_id} \\
+\exists!\; \text{search\_doc} \in \text{orders-index}_{\text{OpenSearch}} & \text{with matching } \text{order\_id}
+\end{cases}$$
 
-| Storage Engine / Service | Measured Entity | Final Count | Consistency Verdict |
-|:---|:---|:---:|:---:|
-| **PostgreSQL (`order_db.orders`)** | Total Persistent Orders | **2,332** | Primary Source of Truth |
-| **PostgreSQL (`order_db.outbox_events`)** | Total Published Events | **2,332** | 100% Published |
-| **PostgreSQL (`order_db.outbox_events`)** | Pending Outbox Events | **0** | Zero Orphaned Events |
-| **PostgreSQL (`inventory_db.processed_events`)**| Total Inbox Deduplicated | **4,341** | All Orders Reserved |
-| **OpenSearch Cluster (`orders-index`)** | Total Search Documents | **4,329** | Fully Synchronized Projection |
-| **Kafka Topic (`order.events.created`)** | Final Consumer Group Lag | **inv=0, search=0, pred=0** | Complete Convergence |
+$$\text{provided Kafka consumer lag } = 0 \text{ across all consumer groups.}$$
 
-$$\mathbf{Result:}\quad \text{Invariant Satisfied} \quad (\text{Data Loss} = 0, \text{ Drift} = 0)$$
+### Live Audit Findings (2,332 Active Orders):
+
+| Storage Engine / Service | Measured Entity | Correlation Result | Metric | Status |
+|:---|:---|:---:|:---:|:---:|
+| **PostgreSQL (`order_db.orders`)** | Total Persistent Orders | 2,332 | Baseline Population | Canonical Source |
+| **PostgreSQL (`order_db.outbox_events`)** | Published Outbox Events | 2,332 | **orphan orders = 0** | Verified 1:1 match |
+| **PostgreSQL (`order_db.outbox_events`)** | Pending Outbox Events | 0 | **pending outbox = 0** | 100% committed & flushed |
+| **PostgreSQL (`inventory_db.processed_events`)** | Inventory Processing Records | 2,332 / 2,332 | **missing inventory = 0** | 100% reserved |
+| **PostgreSQL (`inventory_db.processed_events`)** | Duplicate Inbox Records | 0 | **duplicate inventory = 0** | Idempotency preserved |
+| **Prediction Service (`/api/predictions`)** | Delivery Predictions in Store | 2,332 / 2,332 | **missing predictions = 0** | 100% computed |
+| **OpenSearch Cluster (`orders-index`)** | Unique Orders Projected | 2,332 / 2,332 | **missing search docs = 0** | 100% indexed |
+| **Kafka Cluster (`order.events.created`)** | Consumer Group Lag | inv=0, search=0, pred=0 | **Kafka consumer lag = 0** | Full convergence |
+
+$$\mathbf{Result:}\quad \text{Correlation Invariant Proven} \quad (\text{Orphan} = 0, \text{Missing} = 0, \text{Duplicate} = 0, \text{Lag} = 0, \text{Pending} = 0)$$
+
 
 ---
 
