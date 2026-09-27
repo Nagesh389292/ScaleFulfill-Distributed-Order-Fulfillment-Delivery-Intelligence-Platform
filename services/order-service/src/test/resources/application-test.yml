@@ -14,6 +14,9 @@ spring:
     enabled: true
     baseline-on-migrate: true
     locations: classpath:db/migration
+  kafka:
+    admin:
+      auto-create: false
 
 services:
   inventory:
@@ -27,3 +30,8 @@ resilience4j:
         minimum-number-of-calls: 3
         failure-rate-threshold: 50
         wait-duration-in-open-state: 2000ms
+
+scalefulfill:
+  outbox:
+    publisher:
+      enabled: false

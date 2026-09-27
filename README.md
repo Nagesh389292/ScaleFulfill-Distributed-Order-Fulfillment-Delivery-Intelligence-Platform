@@ -116,8 +116,8 @@ scalefulfill/
 | **Tier 1 (P50 Latency)** | 32.0 ms | 57.09 ms | Network hop overhead (Gateway routing + HTTP serialization) |
 | **Tier 2 (P95 Latency)** | 46.9 ms | 406.89 ms | Compounding thread latency across downstream boundaries |
 | **Tier 3 (Max Throughput)**| 512.6 req/s | 68.86 req/s | Synchronous thread blocking across 3 distributed tiers |
-| **Edge Protection** | None | Token Bucket Rate Limiting (HTTP 429) | Prevents upstream burst traffic from overwhelming backend services |
-| **Downstream Fault Handling**| Process crash | Resilience4j Circuit Breaker + Fallback (`PENDING_INVENTORY_VERIFICATION`) | Upstream thread pool protected from cascading exhaustion |
+| **Edge Protection** | None | Token Bucket Rate Limiting (HTTP 429) | Limits excessive request bursts before they reach backend services |
+| **Downstream Fault Handling**| Process crash | Resilience4j Circuit Breaker + Fallback (`PENDING_INVENTORY_VERIFICATION`) | Automatic circuit-breaker recovery protects upstream thread pool |
 
 ### The Critical Architectural Takeaway for Phase 3
 Phase 2 deliberately exposed the **inherent scalability and availability ceiling of synchronous distributed communication**:

@@ -20,7 +20,7 @@
 | **Tier 2 P95 Latency** | 46.9 ms | 406.89 ms | Compounding thread latency across downstream boundaries |
 | **Tier 3 Throughput** | 512.6 req/s | 68.86 req/s | Synchronous blocking across distributed microservice tiers |
 | **Database Coupling** | Tight (shared DB) | Completely Isolated (order_db & inventory_db) | Eliminates shared DB connection starvation and table lock contention |
-| **Edge Protection** | None | Token Bucket Rate Limiting (429) | Prevents upstream DDoS bursts from reaching backend services |
+| **Edge Protection** | None | Token Bucket Rate Limiting (429) | Limits excessive request bursts before they reach backend services |
 | **Downstream Outage** | Process crash | Circuit Breaker Fast-Fail (503 / Fallback) | Protects upstream order service thread pools from exhaustion |
 
 ## Critical Takeaway for Phase 3
