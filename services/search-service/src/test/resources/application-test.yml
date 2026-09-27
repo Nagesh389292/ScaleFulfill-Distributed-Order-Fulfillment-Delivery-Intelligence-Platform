@@ -1,0 +1,22 @@
+server:
+  port: 8084
+
+spring:
+  application:
+    name: search-service-test
+  kafka:
+    listener:
+      auto-startup: false
+    admin:
+      auto-create: false
+
+opensearch:
+  host: localhost
+  port: 9200
+  scheme: http
+  orders-index: orders-index-test
+  products-index: products-index-test
+
+logging:
+  level:
+    com.scalefulfill.search: INFO

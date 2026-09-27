@@ -20,6 +20,10 @@ spring:
           uri: ${INVENTORY_SERVICE_URL:http://localhost:8082}
           predicates:
             - Path=/api/v1/inventory/**
+        - id: search-service-route
+          uri: ${SEARCH_SERVICE_URL:http://localhost:8084}
+          predicates:
+            - Path=/api/v1/search/**
 
 management:
   endpoints:
