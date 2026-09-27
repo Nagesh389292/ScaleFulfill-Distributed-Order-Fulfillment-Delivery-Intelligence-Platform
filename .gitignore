@@ -1,0 +1,44 @@
+target/
+!.mvn/wrapper/maven-wrapper.jar
+!**/src/main/**/target/
+!**/src/test/**/target/
+
+### STS ###
+.apt_generated
+.classpath
+.factorypath
+.project
+.settings
+.springBeans
+.sts4-cache
+
+### IntelliJ IDEA ###
+.idea
+*.iws
+*.iml
+*.ipr
+
+### NetBeans ###
+/nbproject/private/
+/build/
+/nbbuild/
+/dist/
+/nbdist/
+/nbactions.xml
+/nb-configuration.xml
+%USERPROFILE%/.tools/
+.tools/
+
+### VS Code ###
+.vscode/
+
+### Python ###
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.env
+
+### OS ###
+.DS_Store
+Thumbs.db
