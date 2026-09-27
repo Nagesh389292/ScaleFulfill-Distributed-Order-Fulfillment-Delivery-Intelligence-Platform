@@ -6,70 +6,119 @@
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-blue.svg)](https://www.postgresql.org/)
 [![Redis](https://img.shields.io/badge/Redis-7.2-red.svg)](https://redis.io/)
 [![OpenSearch](https://img.shields.io/badge/OpenSearch-2.13-teal.svg)](https://opensearch.org/)
-[![Three.js](https://img.shields.io/badge/Three.js-3D%20WebGL-black.svg)](https://threejs.org/)
 [![Playwright](https://img.shields.io/badge/Playwright-6%2F6%20Passing-green.svg)](https://playwright.dev/)
+[![Three.js](https://img.shields.io/badge/Three.js-WebGL%203D-black.svg)](https://threejs.org/)
 [![Docker](https://img.shields.io/badge/Docker-Enabled-blue.svg)](https://www.docker.com/)
 
-A production-grade, event-driven distributed e-commerce fulfillment platform engineered to handle high-concurrency order ingestion, partitioned relational storage, dynamic multi-center inventory allocation, mathematical wave optimization, distributed ETA predictions, and comprehensive fault tolerance.
+A production-grade, event-driven distributed e-commerce fulfillment platform engineered to solve core distributed systems challenges: **high-concurrency order intake**, **dual-write data loss**, **cascading microservice collapse**, **duplicate delivery corruption**, **CQRS read-path divergence**, **multi-warehouse wave optimization (Google OR-Tools MILP)**, and **cross-datastore consistency auditing**.
 
 > [!NOTE]
-> **Workload Origin & Data Note**
-> ScaleFulfill does not use Amazon's proprietary data. The platform uses generated test workloads to exercise concurrency, event processing, search, prediction, optimization, and failure-recovery behaviour. Performance figures in this repository are measurements from those controlled workloads and should not be interpreted as production benchmarks.
+> **Workload Origin & Empirical Transparency**
+> ScaleFulfill does not rely on proprietary or fabricated production datasets. The platform uses generated, controlled test workloads specifically designed to stress-test concurrency, message streaming, worker backpressure, search indexing, solver branch-and-bound behavior, and fault recovery. All throughput, latency, and solver metrics cited below are empirical measurements gathered from these reproducible benchmark harnesses.
 
 ---
 
-## 🎯 Core Engineering Problems Solved
+## 🌍 Real-World Industry Problems & What ScaleFulfill Solves
 
-ScaleFulfill was architected, benchmarked, and verified across 7 distinct engineering phases to solve foundational distributed systems, scalability, and consistency challenges:
+In modern hyper-scale e-commerce architectures (such as Amazon, Target, Flipkart, and Shopify Plus), order fulfillment is fundamentally a distributed systems coordination challenge. At scale, simple CRUD architectures break down catastrophically. ScaleFulfill addresses eight specific real-world failure modes:
 
-### 1. The Distributed Transaction Dual-Write Problem
-* **The Failure Mode**: In a microservice architecture, updating a relational database (e.g. creating an order) while publishing an event to a message broker (e.g. Kafka) cannot be coordinated with standard 2PC without severe latency and coordinator lockups. If the broker is unreachable or crashes mid-flight, the database write commits but the event is lost forever (inconsistent state).
-* **What We Solved**: Implemented the **Transactional Outbox Pattern** in PostgreSQL (`order_db.outbox_events`) within a single ACID transaction boundary. When an order is created, both the order and the outbox event commit atomically. A scheduled poller flushes outbox events to Kafka asynchronously. Even if Kafka dies completely, order ingestion succeeds with zero data loss; events buffer locally and flush automatically upon broker recovery (verified: 20/20 orders buffered and flushed in 0.17s upon Kafka recovery).
+```text
+┌─────────────────────────────────────────────────────────────────────────────────────────────────┐
+│                                 THE DISTRIBUTED E-COMMERCE PROBLEM                               │
+├───────────────────────────────┬─────────────────────────────────┬───────────────────────────────┤
+│    DUAL-WRITE DATA LOSS       │   CASCADING LATENCY COLLAPSE    │    DUPLICATE STOCK CORRUPTION │
+│ DB write succeeds, but Kafka  │ One slow microservice blocks    │ At-least-once message retry   │
+│ publish fails ──► Order lost! │ upstream HTTP connection pools! │ deducts warehouse stock twice!│
+├───────────────────────────────┼─────────────────────────────────┼───────────────────────────────┤
+│    WRITE LOCK CONTENTION      │   COMBINATORIAL FULFILLMENT     │    UNVERIFIABLE DATA DRIFT    │
+│ Full-text search queries lock │ Nearest warehouse runs out;     │ Distributed datastores drift; │
+│ relational transactional rows!│ split shipments skyrocket costs!│ how to prove zero data loss?  │
+└───────────────────────────────┴─────────────────────────────────┴───────────────────────────────┘
+```
 
-### 2. Synchronous Coupling & Cascading Latency Collapse
-* **The Failure Mode**: A synchronous HTTP microservice design (Phase 2) suffered an **86.5% throughput collapse** (dropping from 512 req/s to 68.86 req/s). Synchronous REST hops caused cascading thread pool exhaustion across services; any downstream latency immediately blocked upstream gateway threads.
-* **What We Solved**: Transformed the architecture into an **Asynchronous Event Fabric** using Apache Kafka. Ingress latency dropped to **<15ms** by confining the synchronous path to local PostgreSQL outbox writes. Inventory deduction, search indexing, and delivery ETA predictions are handled asynchronously across dedicated consumer groups, completely decoupling write throughput from downstream processing speeds.
+---
 
-### 3. At-Least-Once Delivery & Duplicate State Corruption
-* **The Failure Mode**: Apache Kafka guarantees at-least-once delivery. Network retries, consumer rebalancing, or broker failover inevitably cause duplicate message delivery. In inventory management, processing a duplicated order event causes double stock deductions and ghost shortages.
-* **What We Solved**: Implemented an **Idempotent Transactional Inbox Pattern** in PostgreSQL (`inventory_db.processed_events`). The Inventory Service atomically checks and logs `(event_id, order_id)` before applying any stock reservation. Duplicate event replays are safely detected and discarded with zero duplicate reservations (verified: 10 replayed duplicates resulted in exactly 0 duplicate stock deductions).
+### 1. The "Dual-Write" Failure Trap (Data Loss & Inconsistency)
+* **The Industry Problem**: When an order is placed, an application must atomically record the order in a database and broadcast an event to downstream microservices (inventory, routing, notifications). In naive microservices, calling `db.save()` followed by `kafka.send()` is non-transactional. If the network stutters, the server restarts, or Kafka undergoes a partition leader election mid-flight, the database transaction commits, but the event is permanently lost. The customer is charged, but the warehouse never fulfills the order. Conversely, sending to Kafka first risks dispatching items for orders that ultimately fail database validation.
+* **How ScaleFulfill Solves It**: We engineered the **Transactional Outbox Pattern** in PostgreSQL (`order_db.outbox_events`) within a single ACID transaction boundary (`@Transactional`). When an order is ingested, both the order record and the corresponding event payload commit atomically to disk. A scheduled poller flushes outbox events to Apache Kafka (`order.events.created`) asynchronously. If the Kafka cluster dies completely, order ingestion continues with 100% acceptance; outbox records buffer persistently in PostgreSQL and flush automatically upon broker reconnection.
+* **Empirical Proof**: In Phase 7 chaos testing, when Kafka was killed mid-workload, **20/20 orders were committed without failure**, safely buffering in the outbox table and draining to Kafka in **0.17 seconds** once the broker resumed.
+
+---
+
+### 2. Cascading Outages from Synchronous Microservice Coupling
+* **The Industry Problem**: Synchronous REST chains (`API Gateway ──► Order Service ──► Inventory Service ──► Search Service ──► Prediction Service`) suffer from cascading thread-pool exhaustion. If the Inventory Service experiences a garbage collection pause or database lock wait, HTTP connections back up across the network hops. Within seconds, upstream connection pools saturate, causing the entire checkout funnel to collapse for all customers.
+* **How ScaleFulfill Solves It**: In Phase 2, we deliberately tested synchronous microservice decomposition and measured an **86.5% throughput collapse** (dropping from 512.0 req/s to 68.86 req/s). To solve this, we decoupled the architecture in Phase 3 into an **Asynchronous Event Fabric** using Apache Kafka. Ingress latency dropped to **< 15 ms** by confining the synchronous critical path exclusively to the local PostgreSQL ACID transaction. Inventory reservation, search indexing, and delivery ETA prediction consume events independently in dedicated consumer groups, insulating checkout availability from downstream latency.
+* **Empirical Proof**: Under full downstream outages in Phase 7 (Inventory service process terminated), the API Gateway and Order Service maintained **100% order ingestion (30/30 orders accepted)** with zero 5xx errors.
+
+---
+
+### 3. Double-Deduction & Ghost Shortages from At-Least-Once Delivery
+* **The Industry Problem**: Distributed message streaming platforms guarantee *at-least-once delivery*, not exactly-once, across consumer node crashes, network retries, and partition rebalances. If an inventory worker reserves items in a database but crashes milliseconds before acknowledging its Kafka offset, Kafka redelivers the event to another consumer. A naive consumer processes the event again, reserving warehouse inventory twice for a single customer order. This leads to false out-of-stock signals, cancelled orders, and misallocated warehouse labor.
+* **How ScaleFulfill Solves It**: We engineered an **Idempotent Transactional Inbox Pattern** in PostgreSQL (`inventory_db.processed_events`). Before applying stock adjustments, the Inventory Service checks and logs `(event_id, order_id)` within the same local transaction that updates warehouse inventory tables (`FC-HYD-01`, `FC-BLR-01`, `FC-DEL-01`). Duplicate event deliveries violate a database unique constraint, causing the duplicate to be safely acknowledged and discarded without re-executing stock reservations.
+* **Empirical Proof**: In Phase 7 idempotency verification, 10 replayed duplicate events were injected into the Kafka stream; the inbox filter detected every duplicate, resulting in **exactly 0 duplicate stock deductions** and 100% stock count accuracy.
+
+---
 
 ### 4. Relational Write Contention vs Real-Time Search (CQRS)
-* **The Failure Mode**: Running complex customer order searches, status filtering, and fuzzy SKU lookups directly against transactional relational tables creates shared row locks, table scans, and degrades write throughput under peak traffic.
-* **What We Solved**: Built a dedicated **CQRS Read Projection** using **OpenSearch 2.13**. As orders are published to Kafka, an asynchronous search consumer transforms and indexes documents into OpenSearch (measured 133.98ms indexing lag). Complex inverted-index queries achieve **19ms P50 / 30ms P95 latency**, completely isolating search traffic from the transactional database.
+* **The Industry Problem**: Customers and support agents need to search orders by SKU, customer ID, delivery status, and timestamps. Executing complex text pattern searches, multi-column filters, and range queries directly against relational transactional databases (`order_db.orders`) acquires shared read locks, triggers table scans, and competes with concurrent write transactions, causing lock timeouts and high checkout latency.
+* **How ScaleFulfill Solves It**: We implemented **Command Query Responsibility Segregation (CQRS)** by introducing a dedicated read-projection cluster powered by **OpenSearch 2.13**. All state mutations (writes) write strictly to PostgreSQL. An asynchronous search consumer reads the Kafka event stream and indexes denormalized order documents into OpenSearch. Complex customer lookups and SKU facet searches are routed to OpenSearch, completely eliminating search query load from the transactional database.
+* **Empirical Proof**: Search queries execute in **19.0 ms P50 / 30.0 ms P95** with a measured asynchronous indexing lag of **133.98 ms**, while direct order write ingress sustained **306.4 req/s** with sub-35ms concurrent search responsiveness.
 
-### 5. Controllable Backpressure & Thread Contention in Asynchronous Processing
-* **The Failure Mode**: Running CPU-intensive machine learning simulations or ETA routing computations directly inside Kafka consumer threads causes thread-lock contention and unmanaged backpressure. Conversely, spawning threads for sub-millisecond tasks wastes more time in queue coordination than execution.
-* **What We Solved**: Engineered a **Bounded Thread Pool and Priority Work Queue** in the Prediction Service. Empirically demonstrated worker scaling: lightweight tasks stay pinned to 1 worker to eliminate queue synchronization overhead, while CPU-heavy routing simulations scale to 8 workers, increasing throughput to **425.4 evt/s** with a **50.5ms P95 latency** and bounded memory usage.
+---
 
-### 6. Real-Time Checkout vs Mathematical Wave Optimization (Google OR-Tools)
-* **The Failure Mode**: Customer checkout requires sub-5ms routing responses, whereas multi-warehouse batch fulfillment (balancing inventory availability, shipping costs, and warehouse outbound capacity limits) is an NP-hard combinatorial problem.
-* **What We Solved**: Built a **Dual-Mode Optimization Engine**:
-  * **Greedy Nearest-Feasible Heuristic**: Delivers instant (<2ms) routing decisions at checkout based on inventory proximity.
-  * **Google OR-Tools SCIP Mixed-Integer Linear Programming (MILP)**: Solves global wave fulfillment across multiple Fulfillment Centers (`FC-HYD-01`, `FC-BLR-01`, `FC-DEL-01`), achieving **3% to 10% lower shipping and handling costs** ($340–$770 saved per 50–100 order wave) in 26–332ms solve time.
+### 5. The Multi-Warehouse Allocation Problem (Sub-2ms Checkout vs NP-Hard Wave Optimization)
+* **The Industry Problem**: When an order is placed, which warehouse should ship it? A naive heuristic (always picking the warehouse with the closest geographic pin) works fast enough for immediate checkout (<2ms), but across thousands of orders in a warehouse fulfillment "wave", it causes severe logistics inefficiencies:
+  1. Regional fulfillment centers run out of fast-moving items while distant hubs sit idle.
+  2. Multi-item orders get split across multiple warehouses, doubling packing and shipping costs.
+  3. Warehouse outbound truck docks become bottlenecked beyond physical loading capacity.
+  Global multi-warehouse wave allocation is an NP-hard combinatorial Mixed-Integer Linear Programming (MILP) problem balancing stock availability, shipping distance, split-shipment penalties, and warehouse capacity constraints.
+* **How ScaleFulfill Solves It**: We engineered a **Dual-Mode Optimization Engine**:
+  * **Greedy Nearest-Feasible Heuristic**: Evaluates inventory availability and geographic distance in **< 2 ms**, providing immediate routing assignments for real-time customer checkout confirmation.
+  * **Google OR-Tools SCIP Mixed-Integer Linear Programming (MILP)**: Batches orders into warehouse release waves (20–100 orders) and minimizes the global objective function:
+    $$\min Z = \sum_{i} \sum_{j} \Big( \text{ShippingCost}(i, j) + \text{BaseHandling}(j) \Big) \cdot x_{ij} + \lambda \cdot \text{ImbalancePenalty}$$
+    subject to single-assignment, inventory non-negativity, and warehouse outbound capacity constraints.
+* **Empirical Proof**: In Phase 6 benchmarks, the SCIP solver found provably optimal solutions in **26–332 ms**, achieving **3% to 10% lower total fulfillment cost** ($340 to $770 saved per 50–100 order wave) compared to the greedy baseline.
 
-### 7. End-to-End Cross-Datastore Consistency Verification (0 Drift Across 2,332 Records)
-* **The Failure Mode**: Eventual consistency in distributed systems is notoriously difficult to guarantee. Naive table-row count checks (`COUNT(orders) == COUNT(inventory)`) are mathematically invalid because different services process different event subsets.
-* **What We Solved**: Designed an automated **Correlation Invariant Audit Harness** using `order_id` and `event_id` keys. The audit rigorously verifies that for every persistent order:
-  1. A published outbox record exists.
-  2. A corresponding inventory inbox record exists.
-  3. A prediction record exists in the prediction store.
-  4. An OpenSearch index document exists with matching status.
-  5. There are zero duplicate inbox entries and zero Kafka consumer lag.
-  * **Verified Live**: Across **2,332 audited orders**, the invariant audit reports **0 orphan orders, 0 missing inventory, 0 missing predictions, and 0 consistency drift**.
+---
 
-### 8. Interactive 3D Control Plane & End-to-End User Verification
-* **The Failure Mode**: Distributed backends are often treated as black boxes without visual observability into message flow, and UI layers lack rigorous automated verification.
-* **What We Solved**:
-  * Designed an elevated, luxury dark control plane featuring **interactive Three.js 3D WebGL topology**, **gyroscope-style 3D tilt physics (`Card3D.tsx`)**, and ambient glassmorphism.
-  * Authored a 6/6 green **Playwright Chromium E2E test suite** validating real user journeys (order ingress, token-bucket burst shedding, OpenSearch inverted index queries, ETA predictions, and MILP optimization).
+### 6. Controllable Backpressure & Thread Contention in Asynchronous Workers
+* **The Industry Problem**: Running CPU-heavy algorithms (such as ETA route calculations and demand velocity estimation) directly inside Kafka consumer polling loops blocks the Kafka heartbeat thread. Kafka's coordinator assumes the consumer died and triggers repeated, expensive consumer group rebalances. Conversely, spawning unbounded background threads causes operating system thread contention and memory starvation.
+* **How ScaleFulfill Solves It**: We engineered a **Bounded Thread Pool and Priority Work Queue** within the Prediction Service. Thread pool workers are isolated from Kafka ingestion threads. We empirically evaluated worker pool scaling across 1, 2, 4, and 8 worker threads to determine exact synchronization dynamics:
+  * For lightweight sub-millisecond tasks, 1 worker thread outperforms multi-worker pools by eliminating thread handoff and queue-lock contention.
+  * For CPU-heavy simulation workloads, scaling to 8 worker threads increased throughput by **+23.7%** (to **425.4 evt/s**) and reduced P95 latency from 68.3 ms to **50.5 ms**.
+
+---
+
+### 7. Proving Zero Data Drift Across Disparate Datastores (Auditability)
+* **The Industry Problem**: In an eventually consistent microservice architecture, how do you verify that no data was dropped between PostgreSQL, Kafka, OpenSearch, and Redis? Naive aggregate row counts (`COUNT(orders) == COUNT(inventory)`) are mathematically invalid because different microservices legitimately filter, aggregate, or delay different event subsets.
+* **How ScaleFulfill Solves It**: We designed a mathematical **Correlation Invariant Audit Harness** that verifies causal relationships for every persistent order using primary keys `order_id` and `event_id`:
+  1. A published outbox record exists in `order_db.outbox_events`.
+  2. A corresponding processed record exists in `inventory_db.processed_events`.
+  3. A corresponding search document exists in the OpenSearch `orders` index with matching status.
+  4. An ETA prediction record exists in the Prediction Store.
+  5. There are zero duplicate inventory inbox entries and zero Kafka consumer lag.
+* **Empirical Proof**: Audited live across **2,332 persistent test orders**, the invariant audit verified:
+  * Orphan orders: **0**
+  * Missing inventory records: **0**
+  * Missing prediction records: **0**
+  * Missing OpenSearch documents: **0**
+  * Final consistency drift: **0.00%**
+
+---
+
+### 8. Interactive 3D Control Plane & End-to-End User Journey Verification
+* **The Industry Problem**: Backend distributed systems are frequently treated as opaque "black boxes" with no real-time topological visibility into message flow, and frontends often rely on superficial mock data without verifying real browser-to-backend workflows.
+* **How ScaleFulfill Solves It**:
+  * Built an interactive **3D WebGL Topology Control Plane** using **Three.js**, rendering floating warehouse nodes (`FC-HYD-01`, `FC-BLR-01`, `FC-DEL-01`), concentric metallic event bus torus rings, and real-time orbiting particle clouds that respond dynamically to pointer movements.
+  * Implemented **3D Physics Card Tilt (`Card3D.tsx`)** featuring gyroscope-style cursor tracking, dynamic specular glare gradients, and luxury dark glassmorphism.
+  * Developed a **Playwright Chromium E2E Test Suite (6/6 passing)** verifying end-to-end browser journeys: token-bucket rate limiting (HTTP 429), transactional order ingestion, OpenSearch inverted index queries, ETA predictions, and OR-Tools MILP optimization.
 
 ---
 
 ## Architecture Overview
 
 ```text
-                                  CLIENT / CALLER
+                                  CLIENT / BROWSER
                                          │
                                          ▼
                             ┌─────────────────────────┐
@@ -78,52 +127,52 @@ ScaleFulfill was architected, benchmarked, and verified across 7 distinct engine
                             │  [Token Bucket Limiter] │
                             └────────────┬────────────┘
                                          │
-            ┌────────────────────────────┼────────────────────────────┐
-            │ POST /api/v1/orders        │ GET /api/v1/search         │ GET/POST /api/predictions
-            ▼                            ▼                            ▼
-  ┌───────────────────┐        ┌───────────────────┐        ┌───────────────────┐
-  │   Order Service   │        │   Search Service  │        │Prediction Service │
-  │      (:8081)      │        │      (:8084)      │        │      (:8085)      │
-  └─────────┬─────────┘        └─────────┬─────────┘        └─────────┬─────────┘
-            │                            │                            │
-   [ACID Transaction]                    │                            │
-            ▼                            │                            │
-  ┌───────────────────┐                  │                            │
-  │ PostgreSQL (5433) │                  │                            │
-  │   [order_db]      │                  │                            │
-  │ ├── orders        │                  │                            │
-  │ └── outbox_events │                  │                            │
-  └─────────┬─────────┘                  │                            │
-            │                            │                            │
-     Outbox Publisher                    │                            │
-     (Transactional)                     │                            │
-            │                            │                            │
-            └────────────────┐           │                            │
-                             ▼           │                            │
-                 ┌───────────────────────┴───┐                        │
-                 │    Apache Kafka Cluster   │                        │
-                 │          (:9092)          │                        │
-                 │ Topic: order.events.created│                       │
-                 └───────────┬───────────────┘                        │
-                             │                                        │
-           ┌─────────────────┼─────────────────────────┐              │
-           │                 │                         │              │
-           ▼                 ▼                         ▼              │
- ┌───────────────────┐ ┌───────────────────┐ ┌───────────────────┐    │
- │ Inventory Service │ │   Search Service  │ │Prediction Service │    │
- │      (:8082)      │ │  (Search Consumer)│ │(Prediction Group) │    │
- └─────────┬─────────┘ └─────────┬─────────┘ └─────────┬─────────┘    │
-           │                     │                     │              │
-    [Inbox Pattern]              │               Worker Pool          │
-           │                     │             (1-8 Threads)          │
-           ▼                     ▼                     │              ▼
+             ┌───────────────────────────┼───────────────────────────┐
+             │ POST /api/v1/orders       │ GET /api/v1/search        │ GET/POST /api/predictions
+             ▼                           ▼                           ▼
+   ┌───────────────────┐       ┌───────────────────┐       ┌───────────────────┐
+   │   Order Service   │       │   Search Service  │       │Prediction Service │
+   │      (:8081)      │       │      (:8084)      │       │      (:8085)      │
+   └─────────┬─────────┘       └─────────┬─────────┘       └─────────┬─────────┘
+             │                           │                           │
+    [ACID Transaction]                   │                           │
+             ▼                           │                           │
+   ┌───────────────────┐                 │                           │
+   │ PostgreSQL (5433) │                 │                           │
+   │   [order_db]      │                 │                           │
+   │ ├── orders        │                 │                           │
+   │ └── outbox_events │                 │                           │
+   └─────────┬─────────┘                 │                           │
+             │                           │                           │
+      Outbox Publisher                   │                           │
+      (Transactional)                    │                           │
+             │                           │                           │
+             └───────────────┐           │                           │
+                             ▼           │                           │
+                 ┌───────────────────────┴───┐                       │
+                 │    Apache Kafka Cluster   │                       │
+                 │          (:9092)          │                       │
+                 │ Topic: order.events.created│                      │
+                 └───────────┬───────────────┘                       │
+                             │                                       │
+           ┌─────────────────┼─────────────────────────┐             │
+           │                 │                         │             │
+           ▼                 ▼                         ▼             │
+ ┌───────────────────┐ ┌───────────────────┐ ┌───────────────────┐   │
+ │ Inventory Service │ │   Search Service  │ │Prediction Service │   │
+ │      (:8082)      │ │  (Search Consumer)│ │(Prediction Group) │   │
+ └─────────┬─────────┘ └─────────┬─────────┘ └─────────┬─────────┘   │
+           │                     │                     │             │
+    [Inbox Pattern]              │               Worker Pool         │
+           │                     │             (1-8 Threads)         │
+           ▼                     ▼                     │             ▼
  ┌───────────────────┐ ┌───────────────────┐           ▼     ┌───────────────────┐
- │ PostgreSQL (5433) │ │OpenSearch Cluster │   ┌───────────────┤ Prediction Store  │
- │  [inventory_db]   │ │      (:9200)      │   │ Delivery ETA  │ (In-Memory / TTL) │
- │ ├── inventory     │ │  [orders-index]   │   │  Calculators  └─────────┬─────────┘
- │ └── processed_evts│ └───────────────────┘   └───────┬───────┘         │
- └───────────────────┘                                 │                 │
-                                                       ▼                 ▼
+ │ PostgreSQL (5433) │ │OpenSearch Cluster │   ┌─────────────┤ Prediction Store  │
+ │  [inventory_db]   │ │      (:9200)      │   │ Delivery ETA│ (In-Memory / TTL) │
+ │ ├── inventory     │ │  [orders-index]   │   │ Calculators └─────────┬─────────┘
+ │ └── processed_evts│ └───────────────────┘   └───────┬─────┘         │
+ └───────────────────┘                                 │               │
+                                                       ▼               ▼
                                              ┌───────────────────────────────────┐
                                              │     Wave Optimization Engine      │
                                              │   Greedy (<2ms) vs MILP (SCIP)    │
@@ -139,70 +188,15 @@ ScaleFulfill was architected, benchmarked, and verified across 7 distinct engine
  └──────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-> **Detailed Architecture & Transaction Boundaries:** See [docs/architecture.md](file:///c:/Users/NAGESH%20REDDY/Desktop/New%20folder/docs/architecture.md)
+> **Detailed Architecture & Transaction Boundaries:** See [docs/architecture.md](docs/architecture.md)
 
 ---
 
-## Key Engineering Competencies Demonstrated
+## Curated Benchmark & Validation Table
 
-| Capability | Engineering Implementation |
-| :--- | :--- |
-| **Distributed Systems** | Microservice topology, Kafka event streams, consumer groups, transactional outbox pattern |
-| **Asynchronous Decoupling** | Transactional outbox table (`order_db.outbox_events`) polled and published to Kafka asynchronously |
-| **Distributed Concurrency & Idempotency** | Inbox deduplication pattern (`inventory_db.processed_events`) preventing duplicate allocations on message re-delivery |
-| **CQRS & Inverted Search** | OpenSearch 2.12 indexing for sub-30ms full-text and multi-faceted product & order queries |
-| **Mathematical Optimization** | Greedy baseline (<2ms checkout) vs Mixed Integer Linear Programming (OR-Tools SCIP, 26–332ms wave planning) |
-| **Distributed Predictions** | Horizontally-scaled multi-threaded worker pool with configurable intensity and stale TTL evaluation |
-| **Fault Tolerance & Chaos Resilience** | Proven 100% order intake during full downstream outages (Inventory kill, OpenSearch stop, Kafka broker kill) |
-| **Observability Mesh** | Prometheus metrics instrumentation across all services, Micrometer timers/counters, and Grafana dashboards |
+The following 10 empirical metrics demonstrate the architectural trade-offs measured across the engineering progression:
 
-## Project Structure
-
-```text
-scalefulfill/
-├── docs/
-│   ├── engineering-spec.md            # Master Engineering Specification
-│   ├── architecture.md                # Master Architecture & Data Flow Reference
-│   ├── amazon-sde-walkthrough.md      # Amazon SDE Technical Walkthrough & Presentation Story
-│   ├── failure-modes.md               # Failure modes, mitigation strategies & recovery procedures
-│   ├── adr/                           # Architecture Decision Records (ADRs 001–013)
-│   └── benchmarks/                    # Phase 1 through Phase 7 Empirical Benchmark Reports
-├── services/
-│   ├── api-gateway/                   # Spring Cloud Gateway with Redis Token-Bucket Limiter (:8080)
-│   ├── order-service/                 # Order Ingress & PostgreSQL Transactional Outbox (:8081)
-│   ├── inventory-service/             # Multi-FC Inventory & Idempotent Inbox Consumer (:8082)
-│   ├── search-service/                # OpenSearch CQRS Read Projection & Query Engine (:8084)
-│   └── prediction-service/            # Distributed Worker Pool & OR-Tools MILP Solver (:8085)
-├── frontend/                          # React 19 + TypeScript + Vite Presentation Control Plane (:5173)
-├── e2e/                               # Playwright Chromium End-to-End Test Suite (6/6 passing)
-├── infrastructure/
-│   ├── docker-compose.yml             # PostgreSQL (5433), Redis (6379), Kafka (9092), OpenSearch (9200)
-│   └── observability/                 # Prometheus (9090) & Grafana (3000) configs & dashboards
-├── scripts/                           # Automated benchmarking, chaos testing & consistency audit harnesses
-└── tests/                             # Integration, unit, and reliability suites (48/48 passing)
-```
-
----
-
-## Engineering Progression (Phases 1–7 Frozen Baseline)
-
-The engineering progression of ScaleFulfill is **frozen at Phase 7 as a verified baseline**. Each phase resolved a concrete bottleneck identified through measurement:
-
-- [x] **Phase 1: In-Process Monolithic Baseline** — Single PostgreSQL DB with optimistic locking; measured peak throughput of 512 req/s with hot-SKU row contention ([docs/benchmarks/phase1-baseline.md](file:///c:/Users/NAGESH%20REDDY/Desktop/New%20folder/docs/benchmarks/phase1-baseline.md))
-- [x] **Phase 2: Synchronous Microservice Decomposition** — Separated Order and Inventory databases with Spring Cloud Gateway; measured 86.5% throughput collapse (68.86 req/s) due to synchronous HTTP coupling and cascading thread exhaustion ([docs/benchmarks/phase2-decomposition.md](file:///c:/Users/NAGESH%20REDDY/Desktop/New%20folder/docs/benchmarks/phase2-decomposition.md))
-- [x] **Phase 3: Asynchronous Event Fabric & Transactional Outbox** — Replaced synchronous calls with Apache Kafka and the Transactional Outbox pattern; restored ingress latency to <15ms with 471.4 evt/s outbox burst ([docs/benchmarks/phase3-event-driven-kafka.md](file:///c:/Users/NAGESH%20REDDY/Desktop/New%20folder/docs/benchmarks/phase3-event-driven-kafka.md))
-- [x] **Phase 4: CQRS Read Path with OpenSearch** — Separated search projections from relational transaction tables; achieved 19ms P50 / 30ms P95 search latency with 133.98ms indexing lag ([docs/benchmarks/phase4-opensearch-search.md](file:///c:/Users/NAGESH%20REDDY/Desktop/New%20folder/docs/benchmarks/phase4-opensearch-search.md))
-- [x] **Phase 5: Full Observability Mesh** — Implemented Prometheus scraping across 5 scrape targets with 9 domain metric families; verified live detection of consumer lag and failure alerts ([docs/benchmarks/phase5-observability-verification.md](file:///c:/Users/NAGESH%20REDDY/Desktop/New%20folder/docs/benchmarks/phase5-observability-verification.md))
-- [x] **Phase 6: Distributed Predictions & Wave Optimization** — Parallel worker scaling (425.4 evt/s) and dual-mode optimization: Greedy (<2ms checkout) vs OR-Tools SCIP MILP (3–10% wave savings in 26–332ms) ([docs/benchmarks/phase6-prediction-optimization.md](file:///c:/Users/NAGESH%20REDDY/Desktop/New%20folder/docs/benchmarks/phase6-prediction-optimization.md))
-- [x] **Phase 7: End-to-End Reliability, Load & Failure Engineering** — Validated direct ingress (306.4 req/s peak), component outages (Inventory/OpenSearch/Kafka), duplicate delivery idempotency, and proved cross-datastore correlation invariant across 2,332 orders ([docs/benchmarks/phase7-reliability-engineering.md](file:///c:/Users/NAGESH%20REDDY/Desktop/New%20folder/docs/benchmarks/phase7-reliability-engineering.md))
-
----
-
-## Curated Interview-Grade Benchmark Table
-
-The following 10 decisive empirical metrics demonstrate the architectural trade-offs across the progression:
-
-| # | Architectural Milestone / Decision | Measured Metric (Benchmark Environment) | Architectural Trade-off / Technical Significance |
+| # | Architectural Milestone / Decision | Measured Metric (Benchmark Environment) | Architectural Significance / Trade-off |
 |---|---|:---:|---|
 | **1** | **Phase 1: In-Process Monolith** | **512.0 req/s** (P95: 18.0 ms) | High raw throughput via ACID transactions + row locks, but creates a single blast radius and severe hot-SKU lock contention under concurrency. |
 | **2** | **Phase 2: Synchronous Microservices** | **68.86 req/s** (P95: 75.3 ms) | **86.5% throughput collapse**. Synchronous HTTP coupling introduced network hops, cascading thread pool exhaustion, and vulnerability to downstream outages. |
@@ -243,33 +237,81 @@ ScaleFulfill employs a three-tiered testing pyramid that decouples domain correc
 
 ---
 
-## Interactive Presentation UI & Playwright E2E Setup
+## Project Structure
 
-A modern, glassmorphic React/TypeScript control plane (`frontend/`) and Playwright test suite (`e2e/`) are provided as the **portfolio demonstration and verification layer** (Phases 1–7 remain frozen as the validated backend core).
-
-### 1. Launch the Presentation Control Plane
-```powershell
-# Navigate to frontend and start Vite development server
-cd frontend
-npm install
-npm run dev
-# Running on http://localhost:5173 (proxies to Gateway :8080 and Prediction Service :8085)
-```
-
-### 2. Run Playwright End-to-End Tests
-```powershell
-# In a separate terminal, run the Playwright test suite
-cd e2e
-npm install
-npx playwright test
-
-# Or view interactive test runner UI
-npx playwright test --ui
+```text
+scalefulfill/
+├── docs/
+│   ├── engineering-spec.md            # Master Engineering Specification
+│   ├── architecture.md                # Master Architecture & Data Flow Reference
+│   ├── amazon-sde-walkthrough.md      # Amazon SDE Technical Walkthrough & Presentation Story
+│   ├── failure-modes.md               # Failure modes, mitigation strategies & recovery procedures
+│   ├── adr/                           # Architecture Decision Records (ADRs 001–013)
+│   └── benchmarks/                    # Phase 1 through Phase 7 Empirical Benchmark Reports
+├── services/
+│   ├── api-gateway/                   # Spring Cloud Gateway with Redis Token-Bucket Limiter (:8080)
+│   ├── order-service/                 # Order Ingress & PostgreSQL Transactional Outbox (:8081)
+│   ├── inventory-service/             # Multi-FC Inventory & Idempotent Inbox Consumer (:8082)
+│   ├── search-service/                # OpenSearch CQRS Read Projection & Query Engine (:8084)
+│   └── prediction-service/            # Distributed Worker Pool & OR-Tools MILP Solver (:8085)
+├── frontend/                          # React 19 + TypeScript + Vite + Three.js 3D Presentation Control Plane (:5173)
+├── e2e/                               # Playwright Chromium End-to-End Test Suite (6/6 passing)
+├── infrastructure/
+│   ├── docker-compose.yml             # PostgreSQL (5433), Redis (6379), Kafka (9092), OpenSearch (9200)
+│   └── observability/                 # Prometheus (9090) & Grafana (3000) configs & dashboards
+├── scripts/                           # Automated benchmarking, chaos testing & consistency audit harnesses
+└── tests/                             # Integration, unit, and reliability suites (48/48 passing)
 ```
 
 ---
 
-> **Interview Preparation & Technical Walkthrough:**
-> - [Amazon SDE Interview Toolkit](file:///c:/Users/NAGESH%20REDDY/Desktop/New%20folder/docs/amazon-interview-prep.md) — 2-minute elevator pitch, 5-minute deep-dive, 18 interviewer Q&As, 8 STAR behavioral stories.
-> - [Technical Walkthrough & Architecture Reference](file:///c:/Users/NAGESH%20REDDY/Desktop/New%20folder/docs/amazon-sde-walkthrough.md) — Detailed narrative breakdown of all 7 architectural phases.
+## Getting Started: Local Development & Verification
 
+### 1. Prerequisites
+- **Java 21** (JDK 21 LTS)
+- **Maven 3.9+** (or use included `mvnw.cmd`)
+- **Docker Desktop** (for PostgreSQL, Kafka, OpenSearch, Redis)
+- **Node.js 18+** & **npm**
+
+### 2. Start Infrastructure Containers
+```powershell
+docker-compose -f infrastructure/docker-compose.yml up -d
+# Verifies PostgreSQL (:5433), Redis (:6379), Kafka (:9092), OpenSearch (:9200)
+```
+
+### 3. Build & Run Backend Services
+```powershell
+# In root directory, build all services
+./mvnw.cmd clean package -DskipTests
+
+# Start services in separate terminals:
+java -jar services/order-service/target/order-service-1.0.0-SNAPSHOT.jar
+java -jar services/inventory-service/target/inventory-service-1.0.0-SNAPSHOT.jar
+java -jar services/search-service/target/search-service-1.0.0-SNAPSHOT.jar
+java -jar services/prediction-service/target/prediction-service-1.0.0-SNAPSHOT.jar
+java -jar services/api-gateway/target/api-gateway-1.0.0-SNAPSHOT.jar
+```
+
+### 4. Start 3D Presentation Control Plane
+```powershell
+cd frontend
+npm install
+npm run dev
+# Live at http://localhost:5173
+```
+
+### 5. Run Automated Verification Tests
+```powershell
+# Run Java unit & integration tests (48 tests)
+./mvnw.cmd test
+
+# Run Playwright End-to-End Browser Journeys (6 tests)
+cd e2e
+npm test
+```
+
+---
+
+> **Interview Preparation & Technical References:**
+> - [Amazon SDE Interview Prep Toolkit](docs/amazon-interview-prep.md) — 2-minute elevator pitch, 5-minute deep dive, 18 technical interviewer Q&As, 8 STAR behavioral stories.
+> - [Technical Walkthrough & Architecture Reference](docs/amazon-sde-walkthrough.md) — Detailed narrative breakdown of all 7 architectural phases.
