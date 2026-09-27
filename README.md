@@ -94,7 +94,7 @@ scalefulfill/
 ## Roadmap
 
 - [x] **Step 1:** Master Engineering Specification & Design Freeze ([docs/engineering-spec.md](file:///c:/Users/NAGESH%20REDDY/Desktop/New%20folder/docs/engineering-spec.md))
-- [ ] **Phase 1:** Monolith Order & Inventory Core with PostgreSQL
+- [x] **Phase 1:** Monolith Order & Inventory Core with PostgreSQL & Concurrency Tests ([docs/benchmarks/phase1-baseline.md](file:///c:/Users/NAGESH%20REDDY/Desktop/New%20folder/docs/benchmarks/phase1-baseline.md))
 - [ ] **Phase 2:** Microservices Decomposition & API Gateway
 - [ ] **Phase 3:** Kafka Event Fabric & Transactional Outbox
 - [ ] **Phase 4:** Distributed Relational Sharding & Redis Concurrency
@@ -104,3 +104,17 @@ scalefulfill/
 - [ ] **Phase 8:** Fault Tolerance, Circuit Breakers & DLQ Replay
 - [ ] **Phase 9:** Observability & Distributed Tracing (Prometheus/Grafana)
 - [ ] **Phase 10:** Operations Copilot & Operations Dashboard
+
+---
+
+## Phase 1 Monolith Baseline Performance
+
+Measured using automated multi-tier load test on Java 21 LTS runtime (`Spring Boot 3.3.4`):
+
+| Concurrency Tier | Throughput | P50 Latency | P95 Latency | P99 Latency | Conflict Rate |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **Tier 1 (Single Client, 100 req)** | **26.5 req/s** | 32.0 ms | 48.4 ms | 636.6 ms | 0.0% |
+| **Tier 2 (10 Clients, 500 req)** | **417.9 req/s** | 20.0 ms | 46.9 ms | 92.2 ms | 74.2% (Optimistic locks) |
+| **Tier 3 (25 Clients, 1000 req)** | **512.6 req/s** | 43.7 ms | 95.0 ms | 134.8 ms | 87.9% (Optimistic locks) |
+
+*Key Takeaway:* Synchronous ACID locking enforces absolute zero overselling, but concurrent hot-row contention leads to optimistic locking rollbacks at scale, establishing the precise engineering rationale for Phase 2 decomposition and Phase 3 Kafka decoupling.
