@@ -96,33 +96,26 @@ scalefulfill/
 - [x] **Step 1:** Master Engineering Specification & Design Freeze ([docs/engineering-spec.md](file:///c:/Users/NAGESH%20REDDY/Desktop/New%20folder/docs/engineering-spec.md))
 - [x] **Phase 1:** Monolith Order & Inventory Core with PostgreSQL & Concurrency Tests ([docs/benchmarks/phase1-baseline.md](file:///c:/Users/NAGESH%20REDDY/Desktop/New%20folder/docs/benchmarks/phase1-baseline.md))
 - [x] **Phase 2:** Service Decomposition, API Gateway & Synchronous Resilience ([docs/benchmarks/phase2-decomposition.md](file:///c:/Users/NAGESH%20REDDY/Desktop/New%20folder/docs/benchmarks/phase2-decomposition.md))
-- [ ] **Phase 3:** Kafka Event Fabric & Transactional Outbox
-- [ ] **Phase 4:** Distributed Relational Sharding & Redis Concurrency
-- [ ] **Phase 5:** OpenSearch Distributed Indexing & Search
-- [ ] **Phase 6:** Distributed ETA Prediction Engine
-- [ ] **Phase 7:** Mathematical Fulfillment Optimization (Greedy vs LP)
+- [x] **Phase 3:** Kafka Event Fabric, Transactional Outbox & Idempotent Consumers ([docs/benchmarks/phase3-event-driven-kafka.md](file:///c:/Users/NAGESH%20REDDY/Desktop/New%20folder/docs/benchmarks/phase3-event-driven-kafka.md))
+- [ ] **Phase 4:** OpenSearch Distributed Indexing & Search
+- [ ] **Phase 5:** Distributed ETA Prediction Engine
+- [ ] **Phase 6:** Mathematical Fulfillment Optimization (Greedy vs LP)
+- [ ] **Phase 7:** Distributed Relational Sharding & Redis Concurrency
 - [ ] **Phase 8:** Fault Tolerance, Circuit Breakers & DLQ Replay
 - [ ] **Phase 9:** Observability & Distributed Tracing (Prometheus/Grafana)
 - [ ] **Phase 10:** Operations Copilot & Operations Dashboard
 
 ---
 
-## Phase 1 vs Phase 2 Empirical Benchmark Comparison
+## Phase 1 vs Phase 2 vs Phase 3 Empirical Benchmark Comparison
 
-| Metric / Scenario | Phase 1 Monolith | Phase 2 Distributed Synchronous | Architectural Explanation |
-| :--- | :--- | :--- | :--- |
-| **Architecture Topology** | Single Process (In-Memory Calls) | Client → API Gateway → Order Svc → Inventory Svc | True distributed boundaries with independent microservice deployments |
-| **Database Ownership** | Shared PostgreSQL instance | Isolated `order_db` & `inventory_db` | Eliminates cross-domain schema coupling and DB connection exhaustion |
-| **Tier 1 (P50 Latency)** | 32.0 ms | 57.09 ms | Network hop overhead (Gateway routing + HTTP serialization) |
-| **Tier 2 (P95 Latency)** | 46.9 ms | 406.89 ms | Compounding thread latency across downstream boundaries |
-| **Tier 3 (Max Throughput)**| 512.6 req/s | 68.86 req/s | Synchronous thread blocking across 3 distributed tiers |
-| **Edge Protection** | None | Token Bucket Rate Limiting (HTTP 429) | Limits excessive request bursts before they reach backend services |
-| **Downstream Fault Handling**| Process crash | Resilience4j Circuit Breaker + Fallback (`PENDING_INVENTORY_VERIFICATION`) | Automatic circuit-breaker recovery protects upstream thread pool |
-
-### The Critical Architectural Takeaway for Phase 3
-Phase 2 deliberately exposed the **inherent scalability and availability ceiling of synchronous distributed communication**:
-1. Inter-service HTTP serialization and gateway hops increase P50 latency from 32 ms to 57 ms.
-2. Synchronous blocking threads across services drop peak throughput from 512 req/s to 68.8 req/s under high concurrency.
-3. If the Inventory Service is slow or temporarily unavailable, synchronous callers must either block or degrade.
-
-This empirical evidence provides the **exact engineering rationale** for transitioning to **Phase 3: Asynchronous Event-Driven Architecture (Apache Kafka + Transactional Outbox Pattern + Idempotent Consumers)**.
+| Metric / Scenario | Phase 1 Monolith | Phase 2 Distributed Synchronous | Phase 3 Event-Driven (Kafka + Outbox) | Architectural Explanation |
+| :--- | :--- | :--- | :--- | :--- |
+| **Architecture Topology** | Single Process (In-Memory Calls) | Client → API Gateway → Order Svc → Inventory Svc | Gateway → Order Svc → Outbox → Kafka → Idempotent Consumer | Asynchronous choreography with durable partitioned event log |
+| **Database Ownership** | Shared PostgreSQL instance | Isolated `order_db` & `inventory_db` | Isolated `order_db` & `inventory_db` with Outbox & Inbox tables | Full database isolation with zero distributed dual-write inconsistencies |
+| **Client Ingestion Latency** | 32.0 ms (P50) | 57.09 ms (P50) / 406.89 ms (P95) | **< 15.0 ms (Local DB Commit)** | **~73% drop in client latency**; client unblocked upon local Outbox insert |
+| **Peak Throughput / Rate** | 512.6 req/s | 68.86 req/s (Synchronous blocking) | **471.4 events/sec ingestion** (Async Kafka) | Removes thread pool blocking across inter-service network boundaries |
+| **Dual-Write Resilience** | N/A (single ACID DB) | Unprotected (partial failures risk orphaned state) | **Guaranteed via Transactional Outbox** | Order and Outbox event commit atomically; broker outages never lose data |
+| **Consumer Deduplication** | N/A | None | **Relational Inbox Table (`processed_events`)** | Transforms transport at-least-once delivery into exactly-once business side effects |
+| **Edge Protection** | None | Token Bucket Rate Limiting (HTTP 429) | Token Bucket Rate Limiting (HTTP 429) | Limits excessive request bursts before they reach backend services |
+| **Poison Pill Handling** | Process crash | Downstream rejection / 503 fallback | **Dead Letter Queue (DLQ) after 3 retries** | Quarantines corrupted messages into `order.events.created.DLQ` without blocking topic head |

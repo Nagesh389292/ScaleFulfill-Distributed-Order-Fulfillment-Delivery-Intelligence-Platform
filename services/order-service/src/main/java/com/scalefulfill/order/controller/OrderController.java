@@ -23,8 +23,15 @@ public class OrderController {
     private final OrderService orderService;
 
     @PostMapping
-    public ResponseEntity<OrderResponse> createOrder(@Valid @RequestBody CreateOrderRequest request) {
-        OrderResponse response = orderService.createOrder(request);
+    public ResponseEntity<OrderResponse> createOrder(
+            @Valid @RequestBody CreateOrderRequest request,
+            @org.springframework.web.bind.annotation.RequestParam(value = "mode", defaultValue = "async") String mode,
+            @RequestHeader(value = "X-Correlation-Id", required = false) String correlationId) {
+        if ("sync".equalsIgnoreCase(mode)) {
+            OrderResponse response = orderService.createOrder(request);
+            return ResponseEntity.status(HttpStatus.CREATED).body(response);
+        }
+        OrderResponse response = orderService.createOrderWithOutbox(request, correlationId);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
@@ -33,7 +40,7 @@ public class OrderController {
             @Valid @RequestBody CreateOrderRequest request,
             @RequestHeader(value = "X-Correlation-Id", required = false) String correlationId) {
         OrderResponse response = orderService.createOrderWithOutbox(request, correlationId);
-        return ResponseEntity.status(HttpStatus.ACCEPTED).body(response);
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
     @GetMapping("/{orderId}")
