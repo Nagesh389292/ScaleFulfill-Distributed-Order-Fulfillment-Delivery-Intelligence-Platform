@@ -168,15 +168,16 @@ Grafana is provisioned at `http://localhost:3000` (credentials: `admin` / `scale
 
 ---
 
-## 5. Architectural Progression Status
+## 5. Architectural Progression & Reconciled Performance Status
 
-```
-Phase 1: Monolithic Architecture (PostgreSQL + Optimistic Locks)           [FROZEN ✅]
-Phase 2: Microservices Decomposition (Synchronous HTTP + Circuit Breakers) [FROZEN ✅]
-Phase 3: Event-Driven Microservices (Transactional Outbox + Kafka + Inbox)  [FROZEN ✅]
-Phase 4: CQRS & Distributed Search (OpenSearch + Async Projections)        [FROZEN ✅]
-Phase 5: Full Observability Stack (Micrometer + Prometheus + Grafana)      [FROZEN ✅]
-```
+| Phase | Architecture / Capability | Key Performance & Correctness Evidence | Status |
+| :--- | :--- | :--- | :---: |
+| **Phase 1: Monolith Core** | PostgreSQL + Optimistic Locking (`@Version`) | Peak 512 req/s at C=10; bottleneck identified at C=25 (87.9% lock conflict rate on hot SKUs). | 🧊 **Frozen** |
+| **Phase 2: Synchronous Microservices** | API Gateway + Isolated DBs + Circuit Breakers + Redis Rate Limiter | Decoupled DBs; 68.86 req/s peak blocking throughput; circuit breaker fast-fails 503 during outage in <5ms. | 🧊 **Frozen** |
+| **Phase 3: Event-Driven Kafka** | Transactional Outbox + Kafka (4 partitions) + Idempotent Inbox | Client intake <15ms; 471.4 events/sec outbox burst; consumer processing 30.48 events/s (1 worker) to 35.02 events/s (2 workers) with zero loss. | 🧊 **Frozen** |
+| **Phase 4: CQRS & OpenSearch** | OpenSearch 2.12 + Async Event Projections | 19ms P50 / 30ms P95 query speed; 133.98ms average indexing lag; zero order intake disruption during search downtime. | 🧊 **Frozen** |
+| **Phase 5: Full Observability Stack** | Micrometer + Prometheus + Grafana | 4 services scraped; 5 targets UP; 9 custom bounded metrics; verified under live traffic, 429 burst, OpenSearch outage, and lag drain recovery. | 🧊 **FROZEN** |
 
 ### Phase 5 Verdict: **OFFICIALLY FROZEN** 🧊
 All five runtime verification criteria have produced actual measurements, demonstrating end-to-end signal propagation, bounded cardinality safety, and controlled failure/recovery telemetry.
+
