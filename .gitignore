@@ -42,3 +42,12 @@ venv/
 ### OS ###
 .DS_Store
 Thumbs.db
+
+### Node / Frontend / Playwright ###
+node_modules/
+dist/
+dist-ssr/
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/

@@ -162,4 +162,41 @@ flowchart TD
 ScaleFulfill engineering is **strictly frozen at Phase 7**.
 - All 7 core phases are implemented, fully integrated, and empirically validated.
 - The platform exhibits zero data loss, strict idempotency, and complete mathematical correlation consistency across all datastores.
-- No further infrastructure or relational sharding will be added. The system stands as a complete, peer-reviewed distributed systems baseline.
+- No further infrastructure or architectural phases will be added. The system stands as a complete, peer-reviewed distributed systems baseline.
+
+---
+
+## 5. Verification Architecture & Testing Pyramid
+
+To prove the operational validity of ScaleFulfill without altering the frozen backend phases, a three-tiered testing pyramid decouples domain invariants, distributed chaos reliability, and end-to-end browser journeys:
+
+```text
+                  ▲
+                 / \
+                /   \
+               /  ★  \       Playwright Browser E2E Journeys
+              /───────\      Chromium UI flows verifying end-to-end user journeys
+             /    ★    \
+            /───────────\    Distributed Reliability & Chaos Test Harness
+           /      ★      \   Phase 7 stress load, failover & correlation invariant audit
+          /───────────────\
+         /        ★        \ Service Unit & Integration Tests
+        /───────────────────\ Spring Boot test slices & MockMvc test harness (48/48 passing)
+```
+
+### 5.1. Top Tier: Playwright Browser Journeys (`e2e/`)
+- **Technology:** Playwright (TypeScript / Chromium headless & headed).
+- **Scope:** Validates the end-to-end user journey across the React 19 presentation control plane (`frontend/`):
+  1. **Order Creation & Durability:** User fills order form $\to$ API Gateway (:8080) $\to$ Order Service (:8081) $\to$ PostgreSQL outbox $\to$ UI confirmation with generated `orderId` and measured HTTP latency.
+  2. **CQRS Search Querying:** Inverted index customer and SKU queries $\to$ OpenSearch (:9200) $\to$ Search results list rendering with latency badge.
+  3. **Intelligence & ETA Routing:** Fetch dynamic delivery ETA, assigned fulfillment center, transit distance, and demand velocity from Prediction Service (:8085).
+  4. **Traffic Shaping & Rate Limiting:** High-frequency burst traffic triggering Gateway Redis token-bucket limiter (HTTP 429) and verifying graceful UI alert state.
+  5. **Wave Optimization:** Comparative execution of Greedy Heuristic vs Google OR-Tools SCIP MILP wave batch allocation.
+
+### 5.2. Middle Tier: Distributed Chaos & Reliability Harness (`scripts/`)
+- **Technology:** PowerShell, curl, jq, Docker Compose lifecycle hooks.
+- **Scope:** Validates system behavior under distributed stress, component crashes (killing Inventory Service, stopping OpenSearch, killing Kafka broker), outbox recovery, token-bucket burst shedding, duplicate event replay, and automated correlation audits across 2,332 persistent records.
+
+### 5.3. Base Tier: Service Unit & Integration Test Suite (`tests/`)
+- **Technology:** JUnit 5, Spring Boot Test, Mockito, AssertJ, MockMvc.
+- **Scope:** Fast, deterministic verification of local service boundaries: domain entities, outbox table state transitions, inbox deduplication logic, controller validation, and solver constraint fulfillment (**48/48 tests passing**).

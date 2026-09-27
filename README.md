@@ -121,6 +121,8 @@ scalefulfill/
 │   ├── inventory-service/             # Multi-FC Inventory & Idempotent Inbox Consumer (:8082)
 │   ├── search-service/                # OpenSearch CQRS Read Projection & Query Engine (:8084)
 │   └── prediction-service/            # Distributed Worker Pool & OR-Tools MILP Solver (:8085)
+├── frontend/                          # React 19 + TypeScript + Vite Presentation Control Plane (:5173)
+├── e2e/                               # Playwright Chromium End-to-End Test Suite (6/6 passing)
 ├── infrastructure/
 │   ├── docker-compose.yml             # PostgreSQL (5433), Redis (6379), Kafka (9092), OpenSearch (9200)
 │   └── observability/                 # Prometheus (9090) & Grafana (3000) configs & dashboards
@@ -161,5 +163,61 @@ The following 10 decisive empirical metrics demonstrate the architectural trade-
 | **9** | **Phase 7: Fault Isolation Under Outages** | **30/30 orders accepted** during Inventory kill<br>**20/20 committed** during Kafka outage | Complete ingress resilience. When Kafka was killed, Outbox buffered 20 PENDING events and flushed in 0.17s upon recovery (Kafka RTO: 8.33s). |
 | **10**| **Phase 7: Invariant Consistency & Idempotency** | **0 orphan, 0 missing, 0 drift** across 2,332 orders | Replayed duplicates dropped by Inbox table with 0 duplicate reservations. Correlation invariant proven across PostgreSQL, Inventory, Search, and Prediction Store. |
 
-> **Interview Presentation Story:** See [docs/amazon-sde-walkthrough.md](file:///c:/Users/NAGESH%20REDDY/Desktop/New%20folder/docs/amazon-sde-walkthrough.md) for the narrative breakdown and architectural decisions.
+---
+
+## Testing Pyramid & Verification Architecture
+
+ScaleFulfill employs a three-tiered testing pyramid that decouples domain correctness, distributed fault tolerance, and browser-facing user journeys:
+
+```text
+                  ▲
+                 / \
+                /   \
+               /  ★  \       Playwright Browser E2E Journeys
+              /───────\      Chromium end-to-end user flows (6/6 passing)
+             /    ★    \
+            /───────────\    Distributed Reliability & Chaos Test Harness
+           /      ★      \   Phase 7 stress load, failover & correlation invariant audit
+          /───────────────\
+         /        ★        \ Service Unit & Integration Tests
+        /───────────────────\ Spring Boot test slices & MockMvc test harness (48/48 passing)
+```
+
+| Layer | Technology | Scope & Invariants Verified | Status |
+|---|---|---|:---:|
+| **E2E Browser Journeys** | **Playwright (TypeScript / Chromium)** | Validates end-to-end user flows via React Presentation Control Plane: Order creation $\to$ outbox publishing $\to$ Kafka propagation $\to$ OpenSearch CQRS search $\to$ ETA prediction retrieval $\to$ Rate limit (HTTP 429) UI feedback $\to$ MILP wave optimization. | **6/6 Passing** |
+| **Distributed Chaos & Reliability** | **PowerShell & REST / JQ Test Harness** | Validates sustained ingress load (306.4 req/s), token-bucket burst shedding, component kill/failover (PostgreSQL, Kafka, OpenSearch, Inventory), duplicate delivery idempotency, and proves cross-datastore correlation invariant across 2,332 persistent records. | **100% Verified** |
+| **Domain & Integration Tests** | **JUnit 5 / AssertJ / Mockito / MockMvc** | Service isolation, entity state machines, database constraints, transactional outbox persistence, inbox deduplication logic, and OR-Tools SCIP solver constraints. | **48/48 Passing** |
+
+---
+
+## Interactive Presentation UI & Playwright E2E Setup
+
+A modern, glassmorphic React/TypeScript control plane (`frontend/`) and Playwright test suite (`e2e/`) are provided as the **portfolio demonstration and verification layer** (Phases 1–7 remain frozen as the validated backend core).
+
+### 1. Launch the Presentation Control Plane
+```powershell
+# Navigate to frontend and start Vite development server
+cd frontend
+npm install
+npm run dev
+# Running on http://localhost:5173 (proxies to Gateway :8080 and Prediction Service :8085)
+```
+
+### 2. Run Playwright End-to-End Tests
+```powershell
+# In a separate terminal, run the Playwright test suite
+cd e2e
+npm install
+npx playwright test
+
+# Or view interactive test runner UI
+npx playwright test --ui
+```
+
+---
+
+> **Interview Preparation & Technical Walkthrough:**
+> - [Amazon SDE Interview Toolkit](file:///c:/Users/NAGESH%20REDDY/Desktop/New%20folder/docs/amazon-interview-prep.md) — 2-minute elevator pitch, 5-minute deep-dive, 18 interviewer Q&As, 8 STAR behavioral stories.
+> - [Technical Walkthrough & Architecture Reference](file:///c:/Users/NAGESH%20REDDY/Desktop/New%20folder/docs/amazon-sde-walkthrough.md) — Detailed narrative breakdown of all 7 architectural phases.
 
