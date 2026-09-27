@@ -1,0 +1,135 @@
+{
+  "timestamp": 1790532803.1232717,
+  "date": "2026-09-27T18:13:23.125041Z",
+  "scenario_1_load_ramp": {
+    "gateway_rate_limiting": [
+      {
+        "target_rate": 50,
+        "actual_throughput": 263.5,
+        "status_201": 59,
+        "status_429": 41,
+        "status_5xx": 0,
+        "p50_ms": 97.4,
+        "p95_ms": 153.5
+      },
+      {
+        "target_rate": 100,
+        "actual_throughput": 258.1,
+        "status_201": 20,
+        "status_429": 180,
+        "status_5xx": 0,
+        "p50_ms": 88.7,
+        "p95_ms": 150.8
+      },
+      {
+        "target_rate": 200,
+        "actual_throughput": 339.6,
+        "status_201": 19,
+        "status_429": 381,
+        "status_5xx": 0,
+        "p50_ms": 79.6,
+        "p95_ms": 124.1
+      }
+    ],
+    "direct_sustained_ingress": [
+      {
+        "target_rate": 50,
+        "total_orders": 100,
+        "actual_throughput": 301.0,
+        "status_201": 100,
+        "p50_ms": 73.0,
+        "p95_ms": 113.8,
+        "p99_ms": 129.4,
+        "search_query_status": 200,
+        "kafka_lags": {
+          "inv": 103,
+          "search": 1411,
+          "pred": 0
+        }
+      },
+      {
+        "target_rate": 100,
+        "total_orders": 200,
+        "actual_throughput": 306.4,
+        "status_201": 200,
+        "p50_ms": 80.2,
+        "p95_ms": 117.7,
+        "p99_ms": 154.0,
+        "search_query_status": 200,
+        "kafka_lags": {
+          "inv": 194,
+          "search": 1443,
+          "pred": 0
+        }
+      },
+      {
+        "target_rate": 200,
+        "total_orders": 400,
+        "actual_throughput": 230.5,
+        "status_201": 400,
+        "p50_ms": 124.9,
+        "p95_ms": 203.8,
+        "p99_ms": 231.6,
+        "search_query_status": 200,
+        "kafka_lags": {
+          "inv": 197,
+          "search": 1796,
+          "pred": 54
+        }
+      }
+    ]
+  },
+  "scenario_2_inventory_outage": {
+    "scenario": "Inventory Service Outage",
+    "orders_sent": 30,
+    "accepted_during_outage": 30,
+    "lag_accumulated": 620,
+    "drain_duration_s": 23.56,
+    "new_inventory_events": 172,
+    "data_loss": 0
+  },
+  "scenario_3_opensearch_outage": {
+    "scenario": "OpenSearch Outage & Lag Drain",
+    "orders_sent": 30,
+    "accepted_during_outage": 30,
+    "lag_accumulated": 30,
+    "recovery_time_s": 11.57,
+    "drain_duration_s": 4.71,
+    "drain_velocity_eps": 3.8,
+    "new_indexed_documents": 26,
+    "data_loss": 0
+  },
+  "scenario_4_kafka_outage": {
+    "scenario": "Kafka Broker Outage & Outbox Durability",
+    "orders_sent": 20,
+    "accepted_during_outage": 20,
+    "buffered_pending_events": 20,
+    "kafka_rto_s": 8.33,
+    "outbox_flush_duration_s": 0.17,
+    "events_published_post_recovery": 20,
+    "data_loss": 0
+  },
+  "scenario_5_idempotency": {
+    "scenario": "Consumer Idempotency & Duplicate Replay",
+    "event_id": "38357d53-d318-4a85-ae5e-3bad037edcbe",
+    "order_id": "ORD-9CBF050D",
+    "processed_count_before": 1,
+    "processed_count_after": 1,
+    "stock_before": 2828,
+    "stock_after": 2828,
+    "duplicate_reservations": 0
+  },
+  "scenario_6_consistency_invariant": {
+    "total_orders_postgres": 2332,
+    "total_outbox_published": 2332,
+    "total_outbox_pending": 0,
+    "total_inventory_processed": 4341,
+    "total_opensearch_docs": 4329,
+    "final_kafka_lags": {
+      "inventory": 0,
+      "search": 0,
+      "prediction": 0
+    },
+    "invariant_satisfied": true
+  }
+}
